@@ -367,4 +367,4 @@ FodyWeavers.xsd
 *[Ss][Ee][Cc][Rr][Ee][Tt]*
 /artifacts/**/*
 /reports/**/*
-/source/STROM.ATOM.TOOL.Common/STROM.ATOM.TOOL.Common.Tests/TestResults/**/*
+/source/BlackBytesBox.Distributed/BlackBytesBox.Distributed.Tests/TestResults/**/*

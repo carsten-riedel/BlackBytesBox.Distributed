@@ -1,7 +1,7 @@
 
-# STROM.ATOM.TOOL.Common 
+# BlackBytesBox.Distributed 
 
-STROM.ATOM.TOOL.Common is a multi-purpose command-line .NET tool, containing a suite of helper functionalities designed for application development, CI/CD processes, and NuGet package management.
+BlackBytesBox.Distributed is a multi-purpose command-line .NET tool, containing a suite of helper functionalities designed for application development, CI/CD processes, and NuGet package management.
 
 ## Prerequisites
 - .NET SDK: Ensure you have the .NET SDK installed on your machine. If not, download and install it from [the official .NET website](https://dotnet.microsoft.com/download).
@@ -11,26 +11,26 @@ To install the tool globally on your machine, run the following command in your 
 
 ### Install/Update/Reinstall as global tool
 ```
-dotnet tool install -g STROM.ATOM.TOOL.Common
+dotnet tool install -g BlackBytesBox.Distributed
 ```
 
 #### Use
 ```
-satcom -h
-satcom dump osversion
-satcom dump envars
+bbdist -h
+bbdist dump osversion
+bbdist dump envars
 ```
 
 ### Install/Update/Reinstall as local tool
 ```
-dotnet tool install STROM.ATOM.TOOL.Common
+dotnet tool install BlackBytesBox.Distributed
 ```
 
 #### Use
 ```
-dotnet satcom -h
-dotnet satcom dump osversion
-dotnet satcom dump envars
+dotnet bbdist -h
+dotnet bbdist dump osversion
+dotnet bbdist dump envars
 ```
 
 ### General STROM naming conventions

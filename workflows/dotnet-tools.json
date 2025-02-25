@@ -2,10 +2,10 @@
   "version": 1,
   "isRoot": true,
   "tools": {
-    "strom.atom.tool.common": {
+    "BlackBytesBox.Distributed": {
       "version": "0.1.20251.64719",
       "commands": [
-        "satcom"
+        "bbdist"
       ],
       "rollForward": false
     },
