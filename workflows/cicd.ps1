@@ -7,6 +7,7 @@ $env:MSBUILDTERMINALLOGGER = "off" # Disables the terminal logger to ensure full
 
 Set-DotNetNugetSource -SourceName "SourcePackages"
 
+
 # Use for cleaning local enviroment only, use channelRoot for deployment.
 $isCiCd = $false
 $isLocal = $false
