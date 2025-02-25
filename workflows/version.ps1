@@ -1,0 +1,1 @@
+$calculatedVersion = DateTimeVersionConverter64Seconds -VersionBuild 0 -VersionMajor 2

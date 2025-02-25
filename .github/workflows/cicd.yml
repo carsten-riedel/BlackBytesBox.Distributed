@@ -1,0 +1,78 @@
+# This workflow will build a .NET project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+# https://github.com/actions
+
+name: CICD
+
+on:
+  push:
+    paths:
+      - 'source/**'
+      - 'workflows/**'
+    branches:
+      - 'master'
+      - 'main'
+      - 'hotfix'
+      - 'release'
+      - 'develop'
+      - 'bugfix'
+      - 'feature'
+      - 'master/**'
+      - 'main/**'
+      - 'hotfix/**'
+      - 'release/**'
+      - 'develop/**'
+      - 'bugfix/**'
+      - 'feature/**'
+  repository_dispatch:
+    types: 
+      - builddispatch
+  workflow_dispatch:
+
+jobs:
+
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout for Debug
+        uses: actions/checkout@v4
+      - name: Print GitHub Context
+        run: |
+          echo "Event Name: ${{ github.event_name }}"
+          echo "Committer Name: ${{ github.event.head_commit.committer.name }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Actor: ${{ github.event.head_commit.committer.name }}"
+
+  builddeploy:
+    
+    if: (github.event_name == 'workflow_dispatch') || (github.event_name == 'repository_dispatch') || (github.event_name == 'push')
+ 
+    runs-on: ubuntu-latest
+    
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup-dotnet
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+
+    - name: Diagnostic print enviroment vars
+      run: printenv
+
+    - name: Display dotnet version
+      run: dotnet --version    
+
+    - name: Display powershell core version
+      run: pwsh --version
+
+    - name: Workflow Build/Deploy
+      run: workflows/cicd.ps1 "${{ secrets.NUGET_GITHUB_PUSH }}" "${{ secrets.NUGET_PAT }}" "${{ secrets.NUGET_TEST_PAT }}"
+      shell: pwsh 
+

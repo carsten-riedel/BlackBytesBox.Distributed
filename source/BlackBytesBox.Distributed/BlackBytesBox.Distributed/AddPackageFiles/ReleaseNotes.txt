@@ -1,0 +1,22 @@
+﻿Release Notes – 0.2.* (2025-02-18)
+===================================
+
+Status: Early Development Phase
+--------------------------------
+This release continues the foundational development of the software. 
+As progress towards version 1.0, the focus remains on refining core 
+functionalities, improving stability, and integrating key features. 
+Users should expect frequent updates, iterative refinements, and 
+potential changes as the project matures.
+
+What's New & Improved?
+----------------------
+- Active core development with ongoing refinements.
+- Initial groundwork for future stable releases.
+
+Third-Party Notices
+--------------------
+Third-party dependencies and their respective licenses are documented 
+in the `THIRD-PARTY-NOTICES.txt` file, located in the root of the 
+repository. Please review this file to ensure compliance with any 
+relevant licensing terms.

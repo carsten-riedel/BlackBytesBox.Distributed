@@ -1,0 +1,85 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<LangVersion>latest</LangVersion>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<EnableMSTestRunner>true</EnableMSTestRunner>
+
+		<VersionBuild>0</VersionBuild>
+		<VersionMajor>2</VersionMajor>
+		<VersionMinor>0</VersionMinor>
+		<VersionRevision>0</VersionRevision>
+		<AssemblyVersion>$(VersionBuild).$(VersionMajor).$(VersionMinor).$(VersionRevision)</AssemblyVersion>
+		<Version>$(VersionBuild).$(VersionMajor).$(VersionMinor).$(VersionRevision)$(VersionSuffix)</Version>
+
+
+		<!--
+		<EnableMSTestRunner>true</EnableMSTestRunner>
+		<OutputType>Exe</OutputType>
+		 <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport> 
+		 <TestingPlatformShowTestsFailure>true</TestingPlatformShowTestsFailure>
+		 <Exclude>[*]BlackBytesBox.Distributed.Commands.*</Exclude>
+		 -->
+
+		<OutputReportDir Condition="'$(OutputReportDirectory)' != ''">$(OutputReportDirectory)</OutputReportDir>
+		<OutputReportDir Condition="'$(OutputReportDirectory)' == ''">$(MSBuildThisFileDirectory)bin\Output\TestResults\$(AssemblyName)\</OutputReportDir>
+
+		<ResultsDirectory>$(OutputReportDir)</ResultsDirectory>
+		<CollectCoverage>true</CollectCoverage>
+		<CoverletOutputFormat>opencover,json</CoverletOutputFormat>
+		<CoverletOutput>$(MSBuildThisFileDirectory)bin/CoverletOutput</CoverletOutput>
+		<Include>[*]BlackBytesBox.Distributed.Services.*</Include>
+		<VSTestLogger>trx%3bLogFileName=$(OutputReportDir)\ReportTestResult.trx;html%3bLogFileName=$(OutputReportDir)\ReportTestResult.html</VSTestLogger>
+		<!--
+      Displays error on console in addition to the log file. Note that this feature comes with a performance impact.
+      For more information, visit https://learn.microsoft.com/dotnet/core/testing/unit-testing-platform-integration-dotnet-test#show-failure-per-test
+      -->
+
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<IsPackable>false</IsPackable>
+		<IsPublishable>false</IsPublishable>
+		<IsTestProject>true</IsTestProject>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
+		<PackageReference Include="MSTest.TestAdapter" Version="3.8.0" />
+		<PackageReference Include="MSTest.TestFramework" Version="3.8.0" />
+		<PackageReference Include="coverlet.msbuild" Version="6.0.4">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="ReportGenerator" Version="5.4.4" />
+		<PackageReference Include="System.Text.Json" Version="9.0.2" />
+	</ItemGroup>
+
+	<!--<Target Name="ShowSpecificReference" AfterTargets="VSTest">
+		<ItemGroup>
+			--><!-- Filter references whose filename starts with 'MyLibrary' --><!--
+			<MyLibraryReferences Include="@(ReferencePath)" Condition="$([System.String]::Copy(%(Filename)).StartsWith('STROM'))" />
+		</ItemGroup>
+		--><!-- Output the filtered references --><!--
+		<Message Importance="High" Text="========> Specific Referenced Library: @(MyLibraryReferences->'%(Filename)', ', ')" />
+	</Target>-->
+
+
+	<Target Name="GenerateHtmlCoverageReport" AfterTargets="GenerateCoverageResultAfterTest">
+		<ReportGenerator ReportFiles="@(CoverletReport)" TargetDirectory="$(OutputReportDir)" ReportTypes="MarkdownSummaryGithub;CsvSummary" />
+		<Move SourceFiles="$(OutputReportDir)\Summary.csv" DestinationFiles="$(OutputReportDir)\ReportCoverageSummary.csv" />
+		<Move SourceFiles="$(OutputReportDir)\SummaryGithub.md" DestinationFiles="$(OutputReportDir)\ReportCoverageSummary.md" />
+	</Target>
+
+
+	<ItemGroup>
+	  <ProjectReference Include="..\BlackBytesBox.Distributed\BlackBytesBox.Distributed.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+	</ItemGroup>
+
+</Project>
