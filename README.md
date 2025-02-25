@@ -33,5 +33,3 @@ dotnet bbdist dump osversion
 dotnet bbdist dump envars
 ```
 
-### General STROM naming conventions
----
