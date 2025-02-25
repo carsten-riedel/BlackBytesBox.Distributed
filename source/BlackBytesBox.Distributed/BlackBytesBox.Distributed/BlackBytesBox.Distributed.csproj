@@ -58,7 +58,7 @@
 		<Authors>Carsten Riedel</Authors>
 		<Owners>Carsten Riedel</Owners>
 		<PackageId>$(AssemblyName)</PackageId>
-		<PackageTags>dotnet;tool;STROM;bbdist</PackageTags>
+		<PackageTags>dotnet;tool;BlackBytesBox;bbdist</PackageTags>
 		<PackageProjectUrl>https://github.com/carsten-riedel/BlackBytesBox.Distributed</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/carsten-riedel/BlackBytesBox.Distributed</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -68,7 +68,7 @@
 		<PackageReadmeFile>Readme.md</PackageReadmeFile>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<!-- <PackageLicenseFile>License.txt</PackageLicenseFile> -->
-		<PackageIcon>STROM128.png</PackageIcon>
+		<PackageIcon>BlackBytesBoxed128.png</PackageIcon>
 		<PackageReleaseNotes>$([System.IO.File]::ReadAllText("$(MSBuildThisFileDirectory)AddPackageFiles\ReleaseNotes.txt"))</PackageReleaseNotes>
 	</PropertyGroup>
 
