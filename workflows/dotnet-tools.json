@@ -2,13 +2,6 @@
   "version": 1,
   "isRoot": true,
   "tools": {
-    "BlackBytesBox.Distributed": {
-      "version": "0.1.20251.64719",
-      "commands": [
-        "bbdist"
-      ],
-      "rollForward": false
-    },
     "dotnet-outdated-tool": {
       "version": "4.6.4",
       "commands": [
