@@ -33,5 +33,19 @@ dotnet bbdist dump osversion
 dotnet bbdist dump envars
 ```
 
-### General STROM naming conventions
+### General BlackBytesBox naming conventions
 ---
+
+BlackBytesBox.Manifested (PowerShell module)
+BlackBytesBox.Unified (NET Standard library)
+BlackBytesBox.Distributed (Dotnet tool)
+BlackBytesBox.Composed (NET library)
+BlackBytesBox.Dosed (NET-Windows library)
+BlackBytesBox.Routed (ASP.NET library)
+BlackBytesBox.Sliced (ASP.NET Razor library)
+BlackBytesBox.Depreacted (old .NET Framework 4.0 library)
+BlackBytesBox.Seeded (template project)
+BlackBytesBox.[Adjective].[Qualifier] (for further clarity when needed)
+
+BlackBytesBox.Manifested.Base  (Powershell module)
+BlackBytesBox.Distributed.Core  (Dotnet tool)

@@ -178,7 +178,7 @@ foreach ($projectFile in $projectFiles) {
     $outputArtifactPublishDirectory = New-DirectoryFromSegments -Paths @($outputArtifactsDirectory , "publish")
 
     $commonProjectParameters = @(
-        "--verbosity","normal",
+        "--verbosity","minimal",
         "-p:""VersionBuild=$($calculatedVersion.VersionBuild)""",
         "-p:""VersionMajor=$($calculatedVersion.VersionMajor)""",
         "-p:""VersionMinor=$($calculatedVersion.VersionMinor)""",
