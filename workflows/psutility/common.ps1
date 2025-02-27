@@ -1,103 +1,4 @@
-<#
-.SYNOPSIS
-    Converts a DateTime instance into NuGet and assembly version components with a granularity of 64 seconds.
 
-.DESCRIPTION
-    This function calculates the total seconds elapsed from January 1st of the input DateTime's year and discards the lower 6 bits (each unit representing 64 seconds). The resulting value is split into:
-      - LowPart: The lower 16 bits, simulating a ushort value.
-      - HighPart: The remaining upper bits combined with a year-based offset (year multiplied by 10).
-    The output is provided as a version string along with individual version components. This conversion is designed to generate version segments suitable for both NuGet package versions and assembly version numbers. The function accepts additional version parameters and supports years up to 6553.
-
-.PARAMETER VersionBuild
-    An integer representing the build version component.
-
-.PARAMETER VersionMajor
-    An integer representing the major version component.
-
-.PARAMETER InputDate
-    An optional DateTime value. If not provided, the current date/time is used.
-    The year of the InputDate must not exceed 6553.
-
-.EXAMPLE
-    PS C:\> $result = DateTimeVersionConverter64Seconds -VersionBuild 1 -VersionMajor 0 -InputDate (Get-Date "2025-05-01")
-    PS C:\> $result
-    Name              Value
-    ----              -----
-    VersionFull       1.0.20250.1234
-    VersionBuild      1
-    VersionMajor      0
-    VersionMinor      20250
-    VersionRevision   1234
-#>
-function DateTimeVersionConverter64Seconds {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)]
-        [int]$VersionBuild,
-
-        [Parameter(Mandatory = $true)]
-        [int]$VersionMajor,
-
-        [Parameter(Mandatory = $false)]
-        [datetime]$InputDate = (Get-Date)
-    )
-
-    # The number of bits to discard, where each unit equals 64 seconds.
-    $shiftAmount = 6
-
-    $dateTime = $InputDate
-
-    if ($dateTime.Year -gt 6553) {
-        throw "Year must not be greater than 6553."
-    }
-
-    # Determine the start of the current year
-    $startOfYear = [datetime]::new($dateTime.Year, 1, 1, 0, 0, 0, $dateTime.Kind)
-    
-    # Calculate total seconds elapsed since the start of the year
-    $elapsedSeconds = [int](([timespan]($dateTime - $startOfYear)).TotalSeconds)
-    
-    # Discard the lower bits by applying a bitwise shift
-    $shiftedSeconds = $elapsedSeconds -shr $shiftAmount
-    
-    # LowPart: extract the lower 16 bits (simulate ushort using bitwise AND with 0xFFFF)
-    $lowPart = $shiftedSeconds -band 0xFFFF
-    
-    # HighPart: remaining bits after a right-shift of 16 bits
-    $highPart = $shiftedSeconds -shr 16
-    
-    # Combine the high part with a year offset (year multiplied by 10)
-    $combinedHigh = $highPart + ($dateTime.Year * 10)
-    
-    # Return a hashtable with the version string and components (output names must remain unchanged)
-    return @{
-        VersionFull    = "$($VersionBuild.ToString()).$($VersionMajor.ToString()).$($combinedHigh.ToString()).$($lowPart.ToString())"
-        VersionBuild   = $VersionBuild.ToString();
-        VersionMajor   = $VersionMajor.ToString();
-        VersionMinor   = $combinedHigh.ToString();
-        VersionRevision = $lowPart.ToString()
-    }
-}
-
-
-
-<#
-.SYNOPSIS
-    Recursively searches a directory for files matching a specified filename pattern.
-.DESCRIPTION
-    This function searches the specified directory and all its subdirectories for files that match
-    the given filename pattern (e.g., *.sln or *.csproj). It returns an array of matching FileInfo objects,
-    which can be iterated with a ForEach loop.
-.PARAMETER Path
-    The root directory where the search should begin.
-.PARAMETER Pattern
-    The filename pattern to search for (e.g., "*.sln" or "*.csproj").
-.EXAMPLE
-    $files = Find-ProjectFiles -Path "C:\MyProjects" -Pattern "*.csproj"
-    foreach ($file in $files) {
-        Write-Output $file.FullName
-    }
-#>
 <#
 .SYNOPSIS
     Recursively searches a directory for files matching a specified pattern.
@@ -212,181 +113,6 @@ function Delete-FilesByPattern {
     }
 }
 
-
-function Get-GitCurrentBranch {
-    <#
-    .SYNOPSIS
-    Retrieves the current Git branch name.
-
-    .DESCRIPTION
-    This function calls Git to determine the current branch. It first uses
-    'git rev-parse --abbrev-ref HEAD' to get the branch name. If the output is
-    "HEAD" (indicating a detached HEAD state), it then attempts to find a branch
-    that contains the current commit using 'git branch --contains HEAD'. If no
-    branch is found, it falls back to returning the commit hash.
-
-    .EXAMPLE
-    PS C:\> Get-GitCurrentBranch
-
-    Returns:
-    master
-
-    .NOTES
-    - Ensure Git is available in your system's PATH.
-    - In cases of a detached HEAD with multiple containing branches, the first
-      branch found is returned.
-    #>
-
-    try {
-        # Get the abbreviated branch name
-        $branch = git rev-parse --abbrev-ref HEAD 2>$null
-
-        # If HEAD is returned, we're in a detached state.
-        if ($branch -eq 'HEAD') {
-            # Try to get branch names that contain the current commit.
-            $branches = git branch --contains HEAD 2>$null | ForEach-Object {
-                # Remove any asterisks or leading/trailing whitespace.
-                $_.Replace('*','').Trim()
-            } | Where-Object { $_ -ne '' }
-
-            if ($branches.Count -gt 0) {
-                # Return the first branch found
-                return $branches[0]
-            }
-            else {
-                # As a fallback, return the commit hash.
-                return git rev-parse HEAD 2>$null
-            }
-        }
-        else {
-            return $branch.Trim()
-        }
-    }
-    catch {
-        Write-Error "Error retrieving Git branch: $_"
-    }
-}
-
-function Get-GitTopLevelDirectory {
-    <#
-    .SYNOPSIS
-        Retrieves the top-level directory of the current Git repository.
-
-    .DESCRIPTION
-        This function calls Git using 'git rev-parse --show-toplevel' to determine
-        the root directory of the current Git repository. If Git is not available
-        or the current directory is not within a Git repository, the function returns
-        an error. The function converts any forward slashes to the system's directory
-        separator (works correctly on both Windows and Linux).
-
-    .EXAMPLE
-        PS C:\Projects\MyRepo> Get-GitTopLevelDirectory
-        C:\Projects\MyRepo
-
-    .NOTES
-        Ensure Git is installed and available in your system's PATH.
-    #>
-
-    try {
-        # Attempt to retrieve the top-level directory of the Git repository.
-        $topLevel = git rev-parse --show-toplevel 2>$null
-
-        if (-not $topLevel) {
-            Write-Error "Not a Git repository or Git is not available in the PATH."
-            return $null
-        }
-
-        # Trim the result and replace forward slashes with the current directory separator.
-        $topLevel = $topLevel.Trim().Replace('/', [System.IO.Path]::DirectorySeparatorChar)
-        return $topLevel
-    }
-    catch {
-        Write-Error "Error retrieving Git top-level directory: $_"
-    }
-}
-
-
-function Get-BranchRoot {
-    <#
-    .SYNOPSIS
-    Extracts the root segment from a Git branch name.
-
-    .DESCRIPTION
-    This function splits the provided branch name by the '/' delimiter and returns the first segment.
-    For branch names without a '/', it returns the original branch name.
-
-    .PARAMETER BranchName
-    The full branch name (e.g., "feature/integreateupdates/fsdd" or "master").
-
-    .EXAMPLE
-    PS C:\> Get-BranchRoot -BranchName "feature/integreateupdates/fsdd"
-    Returns: feature
-
-    .EXAMPLE
-    PS C:\> Get-BranchRoot -BranchName "master"
-    Returns: master
-
-    .NOTES
-    Ensure that the branch name is correctly passed as a string.
-    #>
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]$BranchName
-    )
-
-    if (-not $BranchName) {
-        Write-Error "BranchName cannot be empty."
-        return $null
-    }
-
-    # Split the branch name by '/' and return the first part.
-    $parts = $BranchName.Split('/')
-    return $parts[0]
-}
-
-function Get-NuGetSuffix {
-    <#
-    .SYNOPSIS
-    Maps a Git branch root to a NuGet package suffix.
-
-    .DESCRIPTION
-    This function maps the provided Git branch root (e.g., "feature", "develop") to a NuGet package suffix.
-    For branch roots named 'main' or 'master', it returns an empty string. For all other branch roots,
-    it returns the suffix by prefixing the branch root with a hyphen.
-
-    .PARAMETER BranchRoot
-    The root of the Git branch (e.g., "feature", "develop", "master").
-
-    .EXAMPLE
-    PS C:\> Get-NuGetSuffix -BranchRoot "feature"
-    Returns: -feature
-
-    .EXAMPLE
-    PS C:\> Get-NuGetSuffix -BranchRoot "master"
-    Returns: 
-
-    .NOTES
-    This mapping assumes that the 'main' and 'master' branches do not require a suffix,
-    while all other branch roots are suffixed.
-    #>
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]$BranchRoot
-    )
-
-    if ([string]::IsNullOrWhiteSpace($BranchRoot)) {
-        Write-Error "BranchRoot cannot be empty."
-        return $null
-    }
-
-    switch ($BranchRoot.ToLower()) {
-        'main' { return "" }
-        'master' { return "" }
-        default { return "-$BranchRoot" }
-    }
-}
-
-
 function Ensure-Variable {
     <#
     .SYNOPSIS
@@ -480,242 +206,6 @@ function Ensure-Variable {
 
     Write-Output "Variable Name: $varName, Value: $displayValue"
 }
-
-<#
-.SYNOPSIS
-    Sanitizes a branch name for use as a directory name.
-
-.DESCRIPTION
-    This function takes a branch name string, replaces invalid filename characters 
-    (as determined by System.IO.Path.GetInvalidFileNameChars) with underscores, 
-    and converts forward slashes (/) into the current directory separator 
-    (obtained via System.IO.Path.DirectorySeparatorChar).
-
-.PARAMETER BranchName
-    The branch name string to sanitize.
-
-.EXAMPLE
-    PS> $sanitizedBranch = Sanitize-BranchName -BranchName "feature/some/branch"
-    PS> Write-Host $sanitizedBranch
-#>
-function Sanitize-BranchName {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$BranchName
-    )
-
-    # Get the invalid file name characters
-    $invalidChars = [System.IO.Path]::GetInvalidFileNameChars()
-
-    # Start with the original branch name
-    $sanitized = $BranchName
-
-    # Replace each invalid character with an underscore
-    foreach ($char in $invalidChars) {
-        $pattern = [Regex]::Escape($char)
-        $sanitized = $sanitized -replace $pattern, "_"
-    }
-
-    # Replace forward slashes with the current directory separator
-    $dirSep = [System.IO.Path]::DirectorySeparatorChar
-    $sanitized = $sanitized -replace '/', $dirSep
-
-    return $sanitized
-}
-
-function Generate-ThirdPartyNotices {
-    <#
-    .SYNOPSIS
-    Generates a visually formatted THIRD-PARTY-NOTICES.txt file from a NuGet license JSON.
-
-    .DESCRIPTION
-    Reads the `licenses.json` generated by `dotnet nuget-license` and extracts
-    package name, version, license type, URL, and authors. It formats them
-    into a structured THIRD-PARTY-NOTICES.txt file.
-
-    If any package contains `ValidationErrors`, the script will throw an error and exit.
-
-    .PARAMETER LicenseJsonPath
-    Path to the JSON file containing NuGet license information.
-
-    .PARAMETER OutputPath
-    Path where the THIRD-PARTY-NOTICES.txt file should be created.
-
-    .EXAMPLE
-    Generate-ThirdPartyNotices -LicenseJsonPath "licenses.json" -OutputPath "THIRD-PARTY-NOTICES.txt"
-
-    Generates a THIRD-PARTY-NOTICES.txt file based on `licenses.json`.
-    #>
-    param(
-        [string]$LicenseJsonPath = "licenses.json",
-        [string]$OutputPath = "THIRD-PARTY-NOTICES.txt"
-    )
-
-    if (!(Test-Path $LicenseJsonPath)) {
-        Write-Host "Error: License JSON file not found at $LicenseJsonPath" -ForegroundColor Red
-        exit 1
-    }
-
-    # Read and parse JSON
-    $licenses = Get-Content $LicenseJsonPath | ConvertFrom-Json
-
-    # Check for validation errors
-    $hasErrors = $false
-    foreach ($package in $licenses) {
-        if ($package.ValidationErrors.Count -gt 0) {
-            $hasErrors = $true
-            Write-Host "License validation error in package: $($package.PackageId) - $($package.PackageVersion)" -ForegroundColor Red
-            foreach ($error in $package.ValidationErrors) {
-                Write-Host "   $error" -ForegroundColor Yellow
-            }
-        }
-    }
-
-    if ($hasErrors) {
-        Write-Host "Exiting due to license validation errors." -ForegroundColor Red
-        exit 1
-    }
-
-    # Prepare the notice text
-    $notices = @()
-    $notices += "============================================"
-    $notices += "          THIRD-PARTY LICENSE NOTICES       "
-    $notices += "============================================"
-    $notices += "`nThis project includes third-party libraries under open-source licenses.`n"
-
-    foreach ($package in $licenses) {
-        $name = $package.PackageId
-        $version = $package.PackageVersion
-        $license = $package.License
-        $url = $package.LicenseUrl
-        $authors = $package.Authors
-        $packageProjectUrl = $package.PackageProjectUrl
-
-        $notices += "--------------------------------------------"
-        $notices += "📦 Package: $name (v$version)"
-        $notices += "🔖 License: $license"
-        if ($url) { $notices += "🌍 License URL: $url" }
-        if ($authors) { $notices += "👤 Authors: $authors" }
-        if ($packageProjectUrl) { $notices += "🔗 Project: $packageProjectUrl" }
-        $notices += "--------------------------------------------`n"
-    }
-
-    # Write to file
-    $notices | Out-File -Encoding utf8 $OutputPath
-
-    Write-Host "THIRD-PARTY-NOTICES.txt generated at: $OutputPath" -ForegroundColor Green
-}
-
-
-function Test-DotnetVulnerabilities {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory = $true, HelpMessage = "Path to the .NET solution file (.sln).")]
-        [string]$SolutionPath,
-
-        [Parameter(Mandatory = $false, HelpMessage = "Minimum vulnerability severity that triggers an exit. Valid values: Low, Medium, High, Critical. Default is High.")]
-        [ValidateSet("Low", "Medium", "High", "Critical")]
-        [string]$ExitOn = "High"
-    )
-
-    <#
-    .SYNOPSIS
-      Checks a .NET solution for package vulnerabilities using the dotnet CLI.
-    
-    .DESCRIPTION
-      This function runs the 'dotnet list' command with the '--vulnerable' flag and a JSON output format.
-      It then parses the JSON, inspects each project's frameworks and top-level packages for any vulnerabilities,
-      and compares the vulnerability severity against a threshold (provided via the ExitOn parameter).
-      If any vulnerability is at or above the threshold, the function writes the details and exits with error code 1.
-    
-    .PARAMETER SolutionPath
-      The path to the .NET solution file to check.
-    
-    .PARAMETER ExitOn
-      The minimum severity level that will trigger an exit. 
-      Valid values are: Low, Medium, High, Critical. Defaults to "High".
-    
-    .EXAMPLE
-      Test-DotnetVulnerabilities -SolutionPath "C:\Projects\MySolution.sln" -ExitOn "High"
-    #>
-
-    Write-Host "Checking vulnerabilities in solution: $SolutionPath" -ForegroundColor Cyan
-
-    # Execute the dotnet command and capture the JSON output.
-    $jsonOutput = dotnet list $SolutionPath package --vulnerable --format json 2>&1
-    if (-not $jsonOutput) {
-        Write-Error "No output received from dotnet list. Verify the solution path is correct."
-        exit 1
-    }
-
-    try {
-        $result = $jsonOutput | ConvertFrom-Json
-    }
-    catch {
-        Write-Error "Failed to parse JSON output from dotnet list command."
-        exit 1
-    }
-
-    # Define severity ranking.
-    $severityRank = @{
-        "Low"      = 1;
-        "Medium"   = 2;
-        "High"     = 3;
-        "Critical" = 4;
-    }
-    $thresholdRank = $severityRank[$ExitOn]
-
-    $vulnerabilitiesFound = @()
-
-    # Loop through projects and their frameworks to gather vulnerabilities.
-    foreach ($project in $result.projects) {
-        if ($project.frameworks) {
-            foreach ($framework in $project.frameworks) {
-                if ($framework.topLevelPackages) {
-                    foreach ($package in $framework.topLevelPackages) {
-                        if ($package.vulnerabilities) {
-                            foreach ($vuln in $package.vulnerabilities) {
-                                $vulnerabilitiesFound += [PSCustomObject]@{
-                                    Project         = $project.path
-                                    Framework       = $framework.framework
-                                    Package         = $package.id
-                                    RequestedVersion= $package.requestedVersion
-                                    ResolvedVersion = $package.resolvedVersion
-                                    Severity        = $vuln.severity
-                                    AdvisoryUrl     = $vuln.advisoryurl
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if ($vulnerabilitiesFound.Count -gt 0) {
-        $triggerExit = $false
-        foreach ($vuln in $vulnerabilitiesFound) {
-            if ($severityRank[$vuln.Severity] -ge $thresholdRank) {
-                $triggerExit = $true
-                break
-            }
-        }
-
-        if ($triggerExit) {
-            Write-Host "Vulnerabilities meeting or exceeding the severity threshold '$ExitOn' were found:" -ForegroundColor Red
-            $vulnerabilitiesFound | Format-Table -AutoSize
-            exit 1
-        }
-        else {
-            Write-Host "Vulnerabilities were found, but none meet the threshold '$ExitOn'." -ForegroundColor Yellow
-        }
-    }
-    else {
-        Write-Host "No vulnerabilities found." -ForegroundColor Green
-    }
-}
-
 
 function New-DirectoryFromSegments {
     <#
@@ -927,71 +417,288 @@ function Copy-FilesRecursively {
     }
 }
 
-function Set-DotNetNugetSource {
+function Split-Segments {
     <#
     .SYNOPSIS
-        Configures a dotnet NuGet source.
+        Splits a string containing "/" or "\" separated segments into an array.
 
     .DESCRIPTION
-        This function sets up a NuGet source for dotnet by performing the following steps:
-         - Lists the current NuGet sources.
-         - Removes any existing source with the specified source name.
-         - Creates the destination directory (defaulting to "$HOME/source/packages") if it doesn't exist.
-         - Adds the new NuGet source using the platform-independent destination path.
-         - Enables the new NuGet source.
+        This function takes an input string where segments are separated by "/" or "\" characters,
+        returns an array containing each segment with the first segment in lowercase and subsequent segments in uppercase,
+        and replaces any invalid file name characters with an underscore.
+        It validates that the number of segments does not exceed a specified maximum (default is 2) and that none of the segments match any forbidden values (case-insensitive).
 
-    .PARAMETER SourceName
-        The name of the NuGet source to configure.
+    .PARAMETER InputString
+        The string to be split. It should contain segments separated by "/" or "\".
 
-    .PARAMETER DestinationDirectory
-        The directory path for the NuGet source. If not specified, defaults to "$HOME/source/packages".
-        The path is normalized to use the platform-specific directory separator.
+    .PARAMETER MaxSegments
+        (Optional) The maximum allowed number of segments. Defaults to 2. If the number of segments exceeds this value, an error is thrown and the script exits with code 1.
 
-    .EXAMPLE
-        Set-DotNetNugetSource -SourceName "SourcePackages"
-        # This creates (if necessary) a directory "$HOME/source/packages", removes any existing source named "SourcePackages",
-        # adds it as a NuGet source, and then enables it.
+    .PARAMETER ForbiddenSegments
+        (Optional) An array of forbidden segment values. If any segment matches one of these (case-insensitive), an error is thrown and the script exits with code 1.
+        Defaults to @("latest", "foo").
 
     .EXAMPLE
-        Set-DotNetNugetSource -SourceName "CustomSource" -DestinationDirectory "/custom/nuget/packages"
-        # This will normalize the destination path based on the OS and perform the same operations.
+        PS> Split-Segments -InputString "Bar/Baz" 
+        Returns: @("bar", "BAZ")
+
+    .EXAMPLE
+        PS> Split-Segments -InputString "latest\bar" -ForbiddenSegments @("latest","foo")
+        Throws an error and exits with code 1 because "latest" is a forbidden segment.
+
+    .NOTES
+        - Filters out any empty segments that may result from consecutive "/" or "\" characters.
     #>
-    [CmdletBinding()]
-    param (
+    param(
         [Parameter(Mandatory = $true)]
-        [string]$SourceName,
+        [string]$InputString,
 
-        [Parameter(Mandatory = $false)]
-        [string]$DestinationDirectory
+        [Parameter()]
+        [int]$MaxSegments = 2,
+
+        [Parameter()]
+        [string[]]$ForbiddenSegments = @("latest", "foo")
     )
 
-    # Default the destination directory if not provided.
-    if (-not $DestinationDirectory) {
-        $DestinationDirectory = Join-Path -Path $HOME -ChildPath "source/packages"
+    if (-not $InputString) {
+        return @()
+    }
+    
+    # Split the input string by "/" or "\" and filter out any empty segments.
+    $segments = ($InputString -split '[\\/]')
+    
+    # Check if the number of segments exceeds the maximum allowed.
+    if ($segments.Count -gt $MaxSegments) {
+        Write-Error "Number of segments ($($segments.Count)) exceeds the maximum allowed ($MaxSegments)."
+        exit 1
+    }
+    
+    # Normalize forbidden segments to lower case.
+    $forbiddenLower = $ForbiddenSegments | ForEach-Object { $_.ToLower() }
+    
+    # Check for any forbidden segments (case-insensitive).
+    foreach ($segment in $segments) {
+        if ($forbiddenLower -contains $segment.ToLower()) {
+            Write-Error "Segment '$segment' is forbidden."
+            exit 1
+        }
     }
 
-    # Normalize the directory separators to the platform default.
-    $dirSep = [System.IO.Path]::DirectorySeparatorChar
-    $DestinationDirectory = $DestinationDirectory -replace '[\\/]', $dirSep
+    $invalidChars = [System.IO.Path]::GetInvalidFileNameChars()
+    
 
-    # Create the destination directory if it does not exist.
-    if (-not (Test-Path -Path $DestinationDirectory -PathType Container)) {
-        New-Item -ItemType Directory -Path $DestinationDirectory -Force | Out-Null
-        Write-Verbose "Created directory: $DestinationDirectory"
+    # Replace invalid characters in each segment.
+    for ($i = 0; $i -lt $segments.Count; $i++) {
+        foreach ($char in $invalidChars) {
+            $pattern = [Regex]::Escape($char)
+            $segments[$i] = $segments[$i] -replace $pattern, "-"
+        }
+        # Lowercase the first segment and uppercase the rest.
+        if ($i -eq 0) {
+            $segments[$i] = $segments[$i].ToLower() -replace " ", "_"
+        }
+        else {
+            $segments[$i] = $segments[$i].ToUpper() -replace " ", "_"
+        }
     }
-
-    # List current dotnet nuget sources.
-    #dotnet nuget list source
-
-    # Remove any existing source with the provided name.
-    dotnet nuget remove source $SourceName
-
-    # Add the new NuGet source using the destination directory.
-    dotnet nuget add source "$DestinationDirectory" -n $SourceName
-
-    # Enable the newly added source.
-    dotnet nuget enable source $SourceName
+    
+    # Return the segments array.
+    return @($segments)
 }
 
+function Translate-FirstSegment {
+    <#
+    .SYNOPSIS
+        Translates the first segment of an array using a provided translation hashtable.
+    
+    .DESCRIPTION
+        This function accepts an array of segments and a translation hashtable.
+        It reads the first segment and performs a case-insensitive lookup in the translation table.
+        If a match is found, the first segment is replaced with its corresponding translated value.
+        If no match is found, the first segment is set to the value of the DefaultTranslation parameter (default is "unknown").
+    
+    .PARAMETER Segments
+        The array of segments to be processed.
+    
+    .PARAMETER TranslationTable
+        A hashtable that defines the mapping of original segments to translated segments.
+        For example: @{ "testing" = "tofooo"; "testing2" = "tofooo"; "feat" = "dev" }.
+    
+    .PARAMETER DefaultTranslation
+        (Optional) The default value to assign if the first segment is not found in the translation table.
+        Defaults to "unknown".
+    
+    .EXAMPLE
+        $segments = @("testing", "BAZ")
+        $translationTable = @{
+            "testing"  = "tofooo"
+            "testing2" = "tofooo"
+            "feat"     = "dev"
+        }
+        $newSegments = Translate-FirstSegment -Segments $segments -TranslationTable $translationTable
+        # $newSegments now equals @("tofooo", "BAZ")
+    
+    .EXAMPLE
+        $segments = @("nonexistent", "BAZ")
+        $translationTable = @{
+            "testing"  = "tofooo"
+            "testing2" = "tofooo"
+            "feat"     = "dev"
+        }
+        $newSegments = Translate-FirstSegment -Segments $segments -TranslationTable $translationTable -DefaultTranslation "defaultValue"
+        # $newSegments now equals @("defaultValue", "BAZ")
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Segments,
+    
+        [Parameter(Mandatory = $true)]
+        [hashtable]$TranslationTable,
 
+        [Parameter()]
+        [string]$DefaultTranslation = "unknown"
+    )
+    
+    if (-not $Segments -or $Segments.Count -eq 0) {
+        Write-Error "Segments array is empty."
+        return $Segments
+    }
+    
+    $firstSegment = $Segments[0]
+    
+    # Perform a case-insensitive lookup in the translation table.
+    $translated = $null
+    foreach ($key in $TranslationTable.Keys) {
+        if ($firstSegment -ieq $key) {
+            $translated = $TranslationTable[$key].ToLower()
+            break
+        }
+    }
+    
+    if ( -not ($null -eq $translated) ) {
+        $Segments[0] = $translated
+    }
+    else {
+        $Segments[0] = $DefaultTranslation
+    }
+    
+    return @($Segments)
+}
+
+function Join-Segments {
+    <#
+    .SYNOPSIS
+        Joins an array of segments using the current directory separator.
+
+    .DESCRIPTION
+        This function takes an array of string segments and combines them into a single path
+        using the current system directory separator. It supports an optional override array
+        that can replace segments positionally, and an optional append array that is simply
+        concatenated to the end of the segments. The resulting array is built as follows:
+          - For each position, if the override value is neither $null nor empty, it replaces the segment.
+          - Otherwise, if a segment exists at that position, it is used.
+          - Otherwise, an empty string is used.
+          - After the above, if an append array is provided, its values are added to the end.
+        The output length is determined by:
+          - If no override array is provided, the output length equals the segments count.
+          - If an override array is provided and its length is greater than the segments count,
+            then the effective length is the override array length only if at least one override
+            beyond the segments count is non-null/non-empty; otherwise, it remains the segments count.
+          - Finally, any appended segments increase the output length accordingly.
+
+    .PARAMETER Segments
+        An array of strings representing the segments to join.
+
+    .PARAMETER OverrideArray
+        (Optional) A string array defining positional overrides for the segments.
+        For example: @("tofooo", $null, "dev"). Defaults to $null.
+
+    .PARAMETER AppendSegments
+        (Optional) A string array containing additional segments that are appended to the end
+        of the result. Defaults to $null.
+
+    .EXAMPLE
+        PS> $segments = @("testing")
+        PS> $overrideArray = @($null, "hello", $null, $null, "abc")
+        PS> $appendSegments = @("final", "segment")
+        PS> Join-Segments -Segments $segments -OverrideArray $overrideArray -AppendSegments $appendSegments
+        Returns: @("testing", "hello", "", "", "abc", "final", "segment")
+
+    .EXAMPLE
+        PS> $segments = @("testing", "foo")
+        PS> $overrideArray = @($null, "hello", $null, $null, $null)
+        PS> Join-Segments -Segments $segments -OverrideArray $overrideArray
+        Returns: @("testing", "hello")
+
+    .NOTES
+        - Uses [System.IO.Path]::Combine to join the segments.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Segments,
+
+        [Parameter()]
+        [string[]]$OverrideArray = $null,
+
+        [Parameter()]
+        [string[]]$AppendSegments = $null
+    )
+
+    if ($Segments -eq $null -or $Segments.Count -eq 0) {
+        return ""
+    }
+
+    # Determine the effective length for segments and override array.
+    $effectiveLength = $Segments.Count
+    if ($OverrideArray) {
+        if ($OverrideArray.Count -gt $Segments.Count) {
+            # Check if any element beyond the last segment index is non-null/non-empty.
+            $hasExtraOverrides = $false
+            for ($i = $Segments.Count; $i -lt $OverrideArray.Count; $i++) {
+                if (-not [string]::IsNullOrEmpty($OverrideArray[$i])) {
+                    $hasExtraOverrides = $true
+                    break
+                }
+            }
+            if ($hasExtraOverrides) {
+                $effectiveLength = $OverrideArray.Count
+            }
+        }
+    }
+
+    # Build the result array using the effective length.
+    $result = for ($i = 0; $i -lt $effectiveLength; $i++) {
+        # Get the override if available, else $null.
+        $override = if ($OverrideArray -and $i -lt $OverrideArray.Count) { $OverrideArray[$i] } else { $null }
+        # Get the original segment if available, else empty string.
+        $segment = if ($i -lt $Segments.Count) { $Segments[$i] } else { "" }
+        
+        # Use the override if it is neither null nor empty; otherwise, use the original segment.
+        if (-not [string]::IsNullOrEmpty($override)) {
+            $override
+        }
+        else {
+            $segment
+        }
+    }
+
+    # Ensure $result is an array.
+    $result = @($result)
+
+    # Append additional segments if provided by expanding each element.
+    if ($AppendSegments) {
+        foreach ($seg in $AppendSegments) {
+            $result += $seg
+        }
+    }
+
+    # Join the resulting segments using the current directory separator.
+    $path = $result[0]
+    for ($i = 1; $i -lt $result.Count; $i++) {
+        $path = [System.IO.Path]::Combine($path, $result[$i])
+    }
+    
+    return $path
+}
 

@@ -1,12 +1,35 @@
-. "$PSScriptRoot\psutility\mapper.ps1"
+param (
+    [string]$NUGET_GITHUB_PUSH,
+    [string]$NUGET_PAT,
+    [string]$NUGET_TEST_PAT,
+    [string]$POWERSHELL_GALLERY
+)
+
+# If any of the parameters are empty, try loading them from a secrets file.
+if ([string]::IsNullOrEmpty($NUGET_GITHUB_PUSH) -or [string]::IsNullOrEmpty($NUGET_PAT) -or [string]::IsNullOrEmpty($NUGET_TEST_PAT) -or [string]::IsNullOrEmpty($POWERSHELL_GALLERY)) {
+    if (Test-Path "$PSScriptRoot\cicd_secrets.ps1") {
+        . "$PSScriptRoot\cicd_secrets.ps1"
+        Write-Host "Secrets loaded from file."
+    }
+    if ([string]::IsNullOrEmpty($NUGET_GITHUB_PUSH))
+    {
+        exit 1
+    }
+}
+
+Install-Module -Name BlackBytesBox.Manifested.Initialize -Repository "PSGallery" -Force -AllowClobber
+Install-Module -Name BlackBytesBox.Manifested.Version -Repository "PSGallery" -Force -AllowClobber
+Install-Module -Name BlackBytesBox.Manifested.Git -Repository "PSGallery" -Force -AllowClobber
+
+
 . "$PSScriptRoot\psutility\common.ps1"
 . "$PSScriptRoot\psutility\dotnetlist.ps1"
-. "$PSScriptRoot\version.ps1"
 
 $env:MSBUILDTERMINALLOGGER = "off" # Disables the terminal logger to ensure full build output is displayed in the console
 
-Set-DotNetNugetSource -SourceName "SourcePackages"
+Initialize-NugetRepository -Name "LocalNuget" -Location "$HOME\source\localNuget"
 
+$calculatedVersion = Convert-DateTimeTo64SecVersionComponents -VersionBuild 0 -VersionMajor 1
 
 # Use for cleaning local enviroment only, use channelRoot for deployment.
 $isCiCd = $false
@@ -32,20 +55,8 @@ $elapsed = $stopwatch.Elapsed.ToString("hh\:mm\:ss\.fff") ; $stopwatch.Stop()
 Set-Location "$PSScriptRoot"
 Write-Host "===> After DOTNET TOOL RESTORE  elapsed after: $elapsed =========================================================" -ForegroundColor Green
 
-# Check if the secrets file exists before importing
-if (Test-Path "$PSScriptRoot/cicd_secrets.ps1") {
-    . "$PSScriptRoot\cicd_secrets.ps1"
-    Write-Host "Secrets loaded from file."
-} else {
-    $NUGET_GITHUB_PUSH = $args[0]
-    $NUGET_PAT = $args[1]
-    $NUGET_TEST_PAT = $args[2]
-    Write-Host "Secrets will be taken from args."
-}
-
 $currentBranch = Get-GitCurrentBranch
-
-$currentBranchRoot = Get-BranchRoot -BranchName "$currentBranch"
+$currentBranchRoot = Get-GitCurrentBranchRoot
 $topLevelDirectory = Get-GitTopLevelDirectory
 
 #Branch too channel mappings
@@ -85,16 +96,9 @@ Ensure-Variable -Variable { $NUGET_TEST_PAT } -ExitIfNullOrEmpty -HideValue
 $artifactsOutputFolderName = "artifacts"
 $reportsOutputFolderName = "reports"
 
-$outputRootArtifactsDirectory = [System.IO.Path]::Combine($topLevelDirectory, $artifactsOutputFolderName)
-$outputRootReportResultsDirectory   = [System.IO.Path]::Combine($topLevelDirectory, $reportsOutputFolderName)
-$targetConfigAllowedLicenses = [System.IO.Path]::Combine($topLevelDirectory, ".config", "allowed-licenses.json")
-
-Ensure-Variable -Variable { $outputRootArtifactsDirectory } -ExitIfNullOrEmpty
-Ensure-Variable -Variable { $outputRootReportResultsDirectory } -ExitIfNullOrEmpty
-Ensure-Variable -Variable { $targetConfigAllowedLicenses } -ExitIfNullOrEmpty
-
-[System.IO.Directory]::CreateDirectory($outputRootArtifactsDirectory) | Out-Null
-[System.IO.Directory]::CreateDirectory($outputRootReportResultsDirectory) | Out-Null
+$outputRootArtifactsDirectory = New-DirectoryFromSegments -Paths @($topLevelDirectory, $artifactsOutputFolderName)
+$outputRootReportResultsDirectory = New-DirectoryFromSegments -Paths @($topLevelDirectory, $reportsOutputFolderName)
+$targetConfigAllowedLicenses = New-DirectoryFromSegments -Paths @($topLevelDirectory, ".config", "allowed-licenses.json")
 
 if (-not $isCiCd) { Delete-FilesByPattern -Path "$outputRootArtifactsDirectory" -Pattern "*"  }
 if (-not $isCiCd) { Delete-FilesByPattern -Path "$outputRootReportResultsDirectory" -Pattern "*"  }
@@ -374,7 +378,7 @@ foreach ($projectFile in $projectFiles) {
             Copy-FilesRecursively -SourceDirectory "$outputArtifactPublishDirectory" -DestinationDirectory "$destinationPublishDirectory\$channelVersionFolderRoot" -Filter "*" -CopyEmptyDirs $false -ForceOverwrite $true -CleanDestination $true
 
             $firstFileMatch = Get-ChildItem -Path $outputArtifactPackDirectory -Filter "*.nupkg" -File -Recurse | Select-Object -First 1
-            dotnet nuget push "$($firstFileMatch.FullName)" --source SourcePackages
+            dotnet nuget push "$($firstFileMatch.FullName)" --source LocalNuget
         }
         if ($isCiCd)
         {
@@ -396,7 +400,7 @@ foreach ($projectFile in $projectFiles) {
             Copy-FilesRecursively -SourceDirectory "$outputArtifactPublishDirectory" -DestinationDirectory "$destinationPublishDirectory\$channelVersionFolderRoot" -Filter "*" -CopyEmptyDirs $false -ForceOverwrite $true -CleanDestination $true
 
             $firstFileMatch = Get-ChildItem -Path $outputArtifactPackDirectory -Filter "*.nupkg" -File -Recurse | Select-Object -First 1
-            dotnet nuget push "$($firstFileMatch.FullName)" --source SourcePackages
+            dotnet nuget push "$($firstFileMatch.FullName)" --source LocalNuget
         }
         if ($isCiCd)
         {
@@ -419,7 +423,7 @@ foreach ($projectFile in $projectFiles) {
             Copy-FilesRecursively -SourceDirectory "$outputArtifactPublishDirectory" -DestinationDirectory "$destinationPublishDirectory\$channelVersionFolderRoot" -Filter "*" -CopyEmptyDirs $false -ForceOverwrite $true -CleanDestination $true
 
             $firstFileMatch = Get-ChildItem -Path $outputArtifactPackDirectory -Filter "*.nupkg" -File -Recurse | Select-Object -First 1
-            dotnet nuget push "$($firstFileMatch.FullName)" --source SourcePackages
+            dotnet nuget push "$($firstFileMatch.FullName)" --source LocalNuget
         }
         if ($isCiCd)
         {
@@ -443,7 +447,7 @@ foreach ($projectFile in $projectFiles) {
             Copy-FilesRecursively -SourceDirectory "$outputArtifactPublishDirectory" -DestinationDirectory "$destinationPublishDirectory" -Filter "*" -CopyEmptyDirs $false -ForceOverwrite $true -CleanDestination $true
 
             $firstFileMatch = Get-ChildItem -Path $outputArtifactPackDirectory -Filter "*.nupkg" -File -Recurse | Select-Object -First 1
-            dotnet nuget push "$($firstFileMatch.FullName)" --source SourcePackages
+            dotnet nuget push "$($firstFileMatch.FullName)" --source LocalNuget
         }
         if ($isCiCd)
         {

@@ -73,6 +73,6 @@ jobs:
       run: pwsh --version
 
     - name: Workflow Build/Deploy
-      run: workflows/cicd.ps1 "${{ secrets.NUGET_GITHUB_PUSH }}" "${{ secrets.NUGET_PAT }}" "${{ secrets.NUGET_TEST_PAT }}"
+      run: workflows/cicd.ps1 -NUGET_GITHUB_PUSH "${{ secrets.NUGET_GITHUB_PUSH }}" -NUGET_PAT "${{ secrets.NUGET_PAT }}" -NUGET_TEST_PAT "${{ secrets.NUGET_TEST_PAT }}" -POWERSHELL_GALLERY "${{ secrets.POWERSHELL_GALLERY }}"
       shell: pwsh 
 
