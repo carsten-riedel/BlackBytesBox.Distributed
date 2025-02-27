@@ -27,7 +27,7 @@ Install-Module -Name BlackBytesBox.Manifested.Git -Repository "PSGallery" -Force
 
 $env:MSBUILDTERMINALLOGGER = "off" # Disables the terminal logger to ensure full build output is displayed in the console
 
-Initialize-NugetRepository -Name "LocalNuget" -Location "$HOME\source\localNuget"
+Initialize-NugetRepositoryDotNet -Name "LocalNuget" -Location "$HOME\source\localNuget"
 
 $calculatedVersion = Convert-DateTimeTo64SecVersionComponents -VersionBuild 0 -VersionMajor 1
 
