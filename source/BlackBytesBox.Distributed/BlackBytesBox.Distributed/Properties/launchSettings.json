@@ -2,7 +2,7 @@
   "profiles": {
     "BlackBytesBox.Distributed": {
       "commandName": "Project",
-      "commandLineArgs": "csproj --file C:\\dev\\github.com\\carsten-riedel\\BlackBytesBox.Distributed\\source\\BlackBytesBox.Distributed\\BlackBytesBox.Distributed\\BlackBytesBox.Distributed.csproj --property TargetFramework -m verbose"
+      "commandLineArgs": "dump osversion"
     }
   }
 }

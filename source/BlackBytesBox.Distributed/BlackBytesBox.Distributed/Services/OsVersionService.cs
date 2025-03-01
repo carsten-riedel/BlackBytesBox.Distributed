@@ -3,6 +3,7 @@ using System;
 using System.Threading;
 
 using Microsoft.Extensions.Logging;
+using System.Runtime.InteropServices;
 
 
 namespace BlackBytesBox.Distributed.Services
@@ -16,7 +17,7 @@ namespace BlackBytesBox.Distributed.Services
         /// <summary>
         /// Displays the current operating system version.
         /// </summary>
-        Task ShowOsVersion(int delay, CancellationToken cancellationToken);
+        Task ShowOsVersion(CancellationToken cancellationToken);
     }
 
     /// <summary>
@@ -32,11 +33,10 @@ namespace BlackBytesBox.Distributed.Services
         }
 
         /// <inheritdoc />
-        public async Task ShowOsVersion(int delay,CancellationToken cancellationToken)
+        public async Task ShowOsVersion(CancellationToken cancellationToken)
         {
             _logger.LogDebug("Displaying the operating system version...");
-            await Task.Delay(delay, cancellationToken);
-            Console.WriteLine($"{Environment.OSVersion}");
+            Console.WriteLine($"{RuntimeInformation.OSDescription}");
             _logger.LogDebug("Operating system version displayed.");
         }
     }

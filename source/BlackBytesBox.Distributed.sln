@@ -8,7 +8,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionItems", "SolutionIt
 		..\workflows\cicd.ps1 = ..\workflows\cicd.ps1
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "BlackBytesBox.Distributed", "BlackBytesBox.Distributed", "{69044FB4-D45F-4F61-A850-E085D56B1734}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{05E8020C-8779-408E-B193-45DD8CD4494D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlackBytesBox.Distributed", "BlackBytesBox.Distributed\BlackBytesBox.Distributed\BlackBytesBox.Distributed.csproj", "{3E80BAA3-9C64-DDC6-3AF8-A303D15FC2DB}"
 EndProject
@@ -33,8 +33,8 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{3E80BAA3-9C64-DDC6-3AF8-A303D15FC2DB} = {69044FB4-D45F-4F61-A850-E085D56B1734}
-		{C29AC05B-8C4E-1E6A-BB8A-C9B098F4DB27} = {69044FB4-D45F-4F61-A850-E085D56B1734}
+		{3E80BAA3-9C64-DDC6-3AF8-A303D15FC2DB} = {05E8020C-8779-408E-B193-45DD8CD4494D}
+		{C29AC05B-8C4E-1E6A-BB8A-C9B098F4DB27} = {05E8020C-8779-408E-B193-45DD8CD4494D}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {5DD3C65F-D95D-43B5-A21A-B13ED33C3420}

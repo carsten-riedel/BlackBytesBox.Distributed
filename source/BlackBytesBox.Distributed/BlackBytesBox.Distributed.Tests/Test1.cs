@@ -3,11 +3,11 @@
     using System.Threading;
     using System.Threading.Tasks;
 
-    using global::BlackBytesBox.Distributed.Extensions.StringExtensions;
     using global::BlackBytesBox.Distributed.Services;
 
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
+    using Microsoft.Extensions.Logging;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     namespace BlackBytesBox.Distributed.Tests
@@ -34,9 +34,12 @@
             {
                 // This method is called once for the test class, before any tests of the class are run.
                 host = Host.CreateDefaultBuilder()
+                    .ConfigureLogging((ctx, configureLogging) => {
+                        configureLogging.ClearProviders();
+                        configureLogging.AddConsole();
+                    })
                     .ConfigureServices((ctx, services) =>
                     {
-                        services.AddLogging();
                         services.AddTransient<IOsVersionService, OsVersionService>();
                     })
                     .Build();
@@ -61,6 +64,7 @@
                 // This method is called after each test method.
             }
 
+
             [TestMethod]
             [DataRow(100)]
             [DataRow(200)]
@@ -72,7 +76,7 @@
                 IOsVersionService osVersionService = host.Services.GetRequiredService<IOsVersionService>();
 
                 // Call the service method with a short delay and a cancellation token.
-                await osVersionService.ShowOsVersion(delay, CancellationToken.None);
+                await osVersionService.ShowOsVersion(CancellationToken.None);
             }
 
             [TestMethod]

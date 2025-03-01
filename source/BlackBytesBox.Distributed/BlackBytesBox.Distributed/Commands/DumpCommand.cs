@@ -98,7 +98,7 @@ namespace BlackBytesBox.Distributed.Commands
             {
                 if (settings.Target!.Equals("osversion", StringComparison.OrdinalIgnoreCase))
                 {
-                    await _osVersionService.ShowOsVersion(settings.Delay, cancellationToken);
+                    await _osVersionService.ShowOsVersion(cancellationToken);
                     _logger.LogInformation("{CommandName} command ended.", context.Name);
                     return 0;
                 }
