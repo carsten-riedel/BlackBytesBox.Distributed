@@ -1,11 +1,12 @@
 ﻿using System.Threading.Tasks;
+using System;
+using System.Threading;
+
+using Microsoft.Extensions.Logging;
+
 
 namespace BlackBytesBox.Distributed.Services
 {
-    using System;
-    using System.Threading;
-
-    using Microsoft.Extensions.Logging;
 
     /// <summary>
     /// A service for retrieving and displaying the operating system version.

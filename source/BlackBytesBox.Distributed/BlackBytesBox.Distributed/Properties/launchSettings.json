@@ -2,7 +2,7 @@
   "profiles": {
     "BlackBytesBox.Distributed": {
       "commandName": "Project",
-      "commandLineArgs": "vscode"
+      "commandLineArgs": "csproj --location C:\\dev\\github.com\\carsten-riedel\\BlackBytesBox.Distributed\\source\\BlackBytesBox.Distributed\\BlackBytesBox.Distributed\\BlackBytesBox.Distributed.csproj --property TargetFramework"
     }
   }
 }
