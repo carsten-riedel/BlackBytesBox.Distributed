@@ -1,86 +1,89 @@
 ﻿using System;
 using System.ComponentModel;
-using System.Diagnostics;
-using System.IO;
-using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+
+using BlackBytesBox.Distributed.Services;
+using BlackBytesBox.Distributed.Spectre;
 
 using Microsoft.Extensions.Logging;
 
 using Serilog.Events;
 
-using Spectre.Console;
 using Spectre.Console.Cli;
-
-using BlackBytesBox.Distributed.Services;
-using BlackBytesBox.Distributed.Spectre;
 
 namespace BlackBytesBox.Distributed.Commands
 {
     /// <summary>
-    /// A concrete abortable command that demonstrates asynchronous, cancellation-aware work.
-    /// After 5 seconds it returns success (0), and if aborted it returns 99.
+    /// A command that retrieves absolute paths of csproj files from a solution file.
+    /// This command demonstrates asynchronous, cancellation-aware work. On success, it returns 0.
+    /// If errors occur and IgnoreErrors is false, non-zero exit codes are returned; otherwise, 0 is returned.
     /// </summary>
     public class SlnCommand : CancellableCommand<SlnCommand.Settings>
     {
         private readonly ILogger<SlnCommand> _logger;
         private readonly ISolutionProjectService _solutionProjectService;
 
-        private int baseErrorCode = 10;
+        // The base error code used when returning error exit codes.
+        private int defaultErrorCode = 10;
 
-        private bool forceSuccess = false;
-
-        private int BaseErrorCode
-        {
-            get
-            {
-                if (forceSuccess)
-                {
-                    return 0;
-                }
-                else
-                {
-                    return baseErrorCode;
-                }
-            }
-        }
-
+        /// <summary>
+        /// Command settings for SlnCommand.
+        /// </summary>
         public class Settings : CommandSettings
         {
-            [Description("The location of the solution file.")]
-            [CommandOption("-s|--solution")]
-            public string? SolutionLocation { get; set; }
+            /// <summary>
+            /// Gets or sets the full path to the solution file.
+            /// </summary>
+            [Description("The full path to the solution file.")]
+            [CommandOption("-f|--file")]
+            public string? FilePath { get; set; }
 
-            [Description("Minimum loglevel, valid values => Verbose,Debug,Information,Warning,Error,Fatal")]
+            /// <summary>
+            /// Gets or sets the minimum log level (valid values: Verbose, Debug, Information, Warning, Error, Fatal).
+            /// </summary>
+            [Description("The minimum log level, valid values: Verbose, Debug, Information, Warning, Error, Fatal. Default is Warning.")]
             [DefaultValue(LogEventLevel.Warning)]
-            [CommandOption("-l|--loglevel")]
-            public LogEventLevel LogEventLevel { get; init; }
+            [CommandOption("-m|--minLogLevel")]
+            public LogEventLevel MinLogLevel { get; init; }
 
-            [Description("Throws and errorcode if command is not found.")]
+            /// <summary>
+            /// Gets or sets a value indicating whether the command should ignore errors.
+            /// If true, the command always returns 0 regardless of errors.
+            /// </summary>
+            [Description("If true, any errors encountered will be ignored and a success exit code (0) is returned.")]
             [DefaultValue(false)]
-            [CommandOption("-f|--forceSuccess")]
-            public bool ForceSuccess { get; init; }
+            [CommandOption("-i|--ignoreerrors")]
+            public bool IgnoreErrors { get; init; }
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SlnCommand"/> class.
+        /// </summary>
+        /// <param name="logger">The logger instance for diagnostic output.</param>
+        /// <param name="solutionProjectService">The service used to retrieve csproj file paths from a solution.</param>
         public SlnCommand(ILogger<SlnCommand> logger, ISolutionProjectService solutionProjectService)
         {
             _solutionProjectService = solutionProjectService ?? throw new ArgumentNullException(nameof(solutionProjectService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-
         /// <summary>
-        /// Downloads and installs Visual Studio Code silently.
+        /// Executes the command to retrieve csproj file paths from the specified solution file.
         /// </summary>
         /// <remarks>
-        /// This method downloads the latest stable VS Code installer for 64-bit Windows from the official update URL,
-        /// saves it to a temporary file, and executes it with silent installation arguments.
+        /// This method validates the solution file path, sets the logging level, and attempts to retrieve
+        /// all csproj file paths contained within the solution. If any error occurs and IgnoreErrors is false,
+        /// an error-specific exit code is returned. If IgnoreErrors is true, 0 is returned even in error cases.
         /// </remarks>
         /// <param name="context">The command context.</param>
-        /// <param name="settings">The settings for the command, including log level and force success flag.</param>
-        /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
-        /// <returns>An integer representing the exit code of the installer process.</returns>
+        /// <param name="settings">The settings for the command, including file path, log level, and ignore errors flag.</param>
+        /// <param name="cancellationToken">A token that monitors for cancellation requests.</param>
+        /// <returns>
+        /// An integer representing the exit code:
+        /// 0 indicates success,
+        /// non-zero codes indicate specific error conditions unless errors are being ignored.
+        /// </returns>
         /// <example>
         /// <code>
         /// int result = await ExecuteAsync(context, settings, cancellationToken);
@@ -88,44 +91,45 @@ namespace BlackBytesBox.Distributed.Commands
         /// </example>
         public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
         {
-            Program.levelSwitch.MinimumLevel = settings.LogEventLevel;
-            forceSuccess = settings.ForceSuccess;
+            Program.levelSwitch.MinimumLevel = settings.MinLogLevel;
             _logger.LogDebug("{CommandName} command started.", context.Name);
 
-            if (string.IsNullOrWhiteSpace(settings.SolutionLocation))
+            // Validate that a solution file path is provided.
+            if (string.IsNullOrWhiteSpace(settings.FilePath))
             {
-                _logger.LogError("Solution location is required. -s|--solution");
-                return BaseErrorCode+2;
+                _logger.LogError("Solution file path is required. Use -f|--file to specify the solution file.");
+                return settings.IgnoreErrors ? 0 : defaultErrorCode + 2;
             }
 
-            if (!System.IO.File.Exists(settings.SolutionLocation))
+            // Validate that the solution file exists.
+            if (!System.IO.File.Exists(settings.FilePath))
             {
-                _logger.LogError("Solution location is not a valid file.");
-                return BaseErrorCode + 3;
+                _logger.LogError("The specified solution file does not exist.");
+                return settings.IgnoreErrors ? 0 : defaultErrorCode + 3;
             }
 
             try
             {
-                var projectsAbsolutePaths = await _solutionProjectService.GetCsProjAbsolutPathsFromSolutions(settings.SolutionLocation, cancellationToken);
+                var projectsAbsolutePaths = await _solutionProjectService.GetCsProjAbsolutPathsFromSolutions(settings.FilePath, cancellationToken);
 
-                for (int i = 0; i < projectsAbsolutePaths.Count; i++)
+                // Output each discovered csproj file path.
+                foreach (var path in projectsAbsolutePaths)
                 {
-                    Console.WriteLine(projectsAbsolutePaths[i]);
+                    Console.WriteLine(path);
                 }
 
                 return 0;
             }
             catch (OperationCanceledException ex)
             {
-                _logger.LogError(ex, "{CommandName} command canceled internally.", context.Name);
-                return BaseErrorCode;
+                _logger.LogError(ex, "{CommandName} command was canceled.", context.Name);
+                return settings.IgnoreErrors ? 0 : defaultErrorCode;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "{CommandName} command encountered an error.", context.Name);
-                return BaseErrorCode + 1;
+                return settings.IgnoreErrors ? 0 : defaultErrorCode + 1;
             }
         }
-
     }
 }

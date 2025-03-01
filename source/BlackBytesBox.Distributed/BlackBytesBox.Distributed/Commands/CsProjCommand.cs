@@ -15,68 +15,79 @@ using Spectre.Console.Cli;
 namespace BlackBytesBox.Distributed.Commands
 {
     /// <summary>
-    /// A command that retrieves a project property, demonstrating asynchronous and cancellation-aware work.
-    /// It validates the project file location and attempts to fetch the "IsPublishable" property.
-    /// Returns 0 on success and appropriate error codes on failures.
+    /// A command that retrieves a specified project property from a project file.
+    /// It demonstrates asynchronous, cancellation-aware work. On success, the command returns 0;
+    /// if errors occur and IgnoreErrors is false, a non-zero error code is returned.
     /// </summary>
     public class CsProjCommand : CancellableCommand<CsProjCommand.Settings>
     {
         private readonly ILogger<CsProjCommand> _logger;
         private readonly ISolutionProjectService _solutionProjectService;
 
-        private int baseErrorCode = 10;
-        private bool forceSuccess = false;
-
-        private int BaseErrorCode
-        {
-            get
-            {
-                return forceSuccess ? 0 : baseErrorCode;
-            }
-        }
+        // Base error code for non-successful execution.
+        private int defaultErrorCode = 10;
 
         /// <summary>
-        /// Command settings for ProjectPropertyCommand.
+        /// Command settings for CsProjCommand.
         /// </summary>
         public class Settings : CommandSettings
         {
             /// <summary>
-            /// Defines the scope for retrieving the project property.
+            /// Defines the element scope for retrieving the project property.
+            /// Valid values are InnerElement (default) or OuterElement.
             /// </summary>
-            public enum ScopeType
+            public enum ElementScope
             {
                 OuterElement,
                 InnerElement
             }
 
-            [Description("The location of the project file.")]
-            [CommandOption("--location")]
-            public string? FileLocation { get; set; }
+            /// <summary>
+            /// Gets or sets the full path to the project file.
+            /// </summary>
+            [Description("The full path to the project file.")]
+            [CommandOption("-f|--file")]
+            public string? FilePath { get; set; }
 
-            [Description("The name of the property to read.")]
+            /// <summary>
+            /// Gets or sets the name of the property to retrieve from the project file.
+            /// </summary>
+            [Description("The name of the property to retrieve.")]
             [CommandOption("--property")]
             public string? PropertyName { get; set; }
 
-            [Description("Specifies the scope of the project property; valid values are InnerElement or OuterElement.")]
-            [DefaultValue(ScopeType.InnerElement)]
-            [CommandOption("--scope")]
-            public ScopeType? Scope { get; set; }
+            /// <summary>
+            /// Gets or sets the element scope to use when retrieving the project property.
+            /// Valid values: InnerElement (default) or OuterElement.
+            /// </summary>
+            [Description("Specifies the element scope; valid values: InnerElement (default) or OuterElement.")]
+            [DefaultValue(ElementScope.InnerElement)]
+            [CommandOption("--elementscope")]
+            public ElementScope? Scope { get; set; }
 
-            [Description("Specifies the minimum log level (e.g., Verbose, Debug, Information, Warning, Error, Fatal).")]
+            /// <summary>
+            /// Gets or sets the minimum log level.
+            /// Valid values: Verbose, Debug, Information, Warning, Error, Fatal. Default is Warning.
+            /// </summary>
+            [Description("The minimum log level, valid values: Verbose, Debug, Information, Warning, Error, Fatal. Default is Warning.")]
             [DefaultValue(LogEventLevel.Warning)]
-            [CommandOption("--loglevel")]
-            public LogEventLevel LogEventLevel { get; init; }
+            [CommandOption("-m|--minLogLevel")]
+            public LogEventLevel MinLogLevel { get; init; }
 
-            [Description("If set to true, forces the command to return success (0) regardless of errors.")]
+            /// <summary>
+            /// Gets or sets a value indicating whether errors should be ignored.
+            /// If true, the command returns a success exit code (0) regardless of errors.
+            /// </summary>
+            [Description("If true, any errors encountered will be ignored and a success exit code (0) is returned.")]
             [DefaultValue(false)]
-            [CommandOption("--forceSuccess")]
-            public bool ForceSuccess { get; init; }
+            [CommandOption("-i|--ignoreerrors")]
+            public bool IgnoreErrors { get; init; }
         }
 
         /// <summary>
-        /// Initializes a new instance of the ProjectPropertyCommand class.
+        /// Initializes a new instance of the <see cref="CsProjCommand"/> class.
         /// </summary>
-        /// <param name="logger">The logger for diagnostic output.</param>
+        /// <param name="logger">The logger used for diagnostic output.</param>
         /// <param name="solutionProjectService">The service used to retrieve project properties.</param>
         public CsProjCommand(ILogger<CsProjCommand> logger, ISolutionProjectService solutionProjectService)
         {
@@ -85,17 +96,20 @@ namespace BlackBytesBox.Distributed.Commands
         }
 
         /// <summary>
-        /// Executes the command to retrieve the "IsPublishable" property from the specified project file.
+        /// Executes the command to retrieve a specified project property from the project file.
         /// </summary>
         /// <remarks>
-        /// This method first configures the logging level based on settings and validates the project file path.
-        /// It then attempts to retrieve the "IsPublishable" property using the provided scope.
-        /// If the file path is missing or invalid, or if any error occurs during retrieval, a corresponding error code is returned.
+        /// The method configures the logging level, validates the project file path,
+        /// and attempts to retrieve the specified property using the provided element scope.
+        /// If errors occur and IgnoreErrors is false, an error-specific exit code is returned.
+        /// Otherwise, 0 is returned.
         /// </remarks>
         /// <param name="context">The command context.</param>
-        /// <param name="settings">The command settings including project location, scope, log level, and force success flag.</param>
+        /// <param name="settings">The command settings including file path, property name, element scope, log level, and ignore errors flag.</param>
         /// <param name="cancellationToken">A token that monitors for cancellation requests.</param>
-        /// <returns>An integer representing the exit code: 0 for success, or a non-zero error code for failures.</returns>
+        /// <returns>
+        /// An integer exit code: 0 indicates success; non-zero values indicate specific error conditions.
+        /// </returns>
         /// <example>
         /// <code>
         /// int result = await ExecuteAsync(context, settings, cancellationToken);
@@ -103,32 +117,36 @@ namespace BlackBytesBox.Distributed.Commands
         /// </example>
         public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
         {
-            Program.levelSwitch.MinimumLevel = settings.LogEventLevel;
-            forceSuccess = settings.ForceSuccess;
+            // Set the logging level based on the user's settings.
+            Program.levelSwitch.MinimumLevel = settings.MinLogLevel;
             _logger.LogDebug("{CommandName} command started.", context.Name);
 
-            if (string.IsNullOrWhiteSpace(settings.FileLocation))
+            // Validate that a project file path is provided.
+            if (string.IsNullOrWhiteSpace(settings.FilePath))
             {
-                _logger.LogError("Project location is required. Use --location to specify the project file.");
-                return BaseErrorCode + 2;
+                _logger.LogError("Project file path is required. Use -f|--file to specify the project file.");
+                return settings.IgnoreErrors ? 0 : defaultErrorCode + 2;
             }
 
-            if (!System.IO.File.Exists(settings.FileLocation))
+            // Validate that the project file exists.
+            if (!System.IO.File.Exists(settings.FilePath))
             {
-                _logger.LogError("Project --location is not a valid file.");
-                return BaseErrorCode + 3;
+                _logger.LogError("The specified project file does not exist.");
+                return settings.IgnoreErrors ? 0 : defaultErrorCode + 3;
             }
 
             try
             {
-                var projectProperty = await _solutionProjectService.GetProjectProperty(settings.FileLocation, settings.PropertyName, settings.Scope, cancellationToken);
+                // Attempt to retrieve the specified project property.
+                var projectProperty = await _solutionProjectService.GetProjectProperty(settings.FilePath, settings.PropertyName, settings.Scope, cancellationToken);
                 if (projectProperty == null)
                 {
-                    _logger.LogError($"The '{settings.PropertyName}' property could not be retrieved from the project file.");
-                    return BaseErrorCode + 4;
+                    _logger.LogError($"The property '{settings.PropertyName}' could not be retrieved from the project file.");
+                    return settings.IgnoreErrors ? 0 : defaultErrorCode + 4;
                 }
                 else
                 {
+                    // Output the retrieved property.
                     Console.WriteLine(projectProperty);
                 }
                 return 0;
@@ -136,12 +154,12 @@ namespace BlackBytesBox.Distributed.Commands
             catch (OperationCanceledException ex)
             {
                 _logger.LogError(ex, "{CommandName} command was canceled.", context.Name);
-                return BaseErrorCode;
+                return settings.IgnoreErrors ? 0 : defaultErrorCode;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "{CommandName} command encountered an error.", context.Name);
-                return BaseErrorCode + 1;
+                return settings.IgnoreErrors ? 0 : defaultErrorCode + 1;
             }
         }
     }
