@@ -1,5 +1,11 @@
 ﻿using System.Threading.Tasks;
 
+using BlackBytesBox.Distributed.Commands;
+using BlackBytesBox.Distributed.Extensions.SpectreHostExtensions;
+using BlackBytesBox.Distributed.Serilog;
+using BlackBytesBox.Distributed.Services;
+using BlackBytesBox.Distributed.Spectre;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -8,16 +14,6 @@ using Serilog.Core;
 using Serilog.Events;
 
 using Spectre.Console.Cli;
-
-using BlackBytesBox.Distributed.Commands;
-using BlackBytesBox.Distributed.Extensions.SpectreHostExtensions;
-using BlackBytesBox.Distributed.Serilog;
-using BlackBytesBox.Distributed.Services;
-using BlackBytesBox.Distributed.Spectre;
-using Microsoft.Build.Experimental;
-using System.Linq;
-using Microsoft.Build.Construction;
-using Microsoft.Build.Evaluation;
 
 namespace BlackBytesBox.Distributed
 {

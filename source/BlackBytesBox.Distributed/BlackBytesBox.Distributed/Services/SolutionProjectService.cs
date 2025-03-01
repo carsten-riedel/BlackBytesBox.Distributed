@@ -50,15 +50,53 @@ namespace BlackBytesBox.Distributed.Services
             List<string> retval = new List<string>();
             try
             {
-                var sln = SolutionFile.Parse(solutionLocation);
+                List<ProjectInSolution> sln = SolutionFile.Parse(solutionLocation).ProjectsInOrder.Where(e => e.ProjectType == SolutionProjectType.KnownToBeMSBuildFormat).ToList();
+                List<ProjectRootElement> projects = new List<ProjectRootElement>();
 
-                foreach (var item in sln.ProjectsInOrder)
+                // Load each project file.
+                foreach (var item in sln)
                 {
-                    if (item.ProjectType == SolutionProjectType.KnownToBeMSBuildFormat)
+                    try
                     {
-                        retval.Add(item.AbsolutePath);
+                        ProjectRootElement projectRoot = ProjectRootElement.Open(item.AbsolutePath);
+                        projects.Add(projectRoot);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to open project file: {ProjectLocation}", item.AbsolutePath);
+                        return null;
                     }
                 }
+
+                // Sort projects so that any project that has a PackageReference with Include="Microsoft.NET.Test.Sdk" appears first.
+                // Test projects: projects with any PackageReference that has Include "Microsoft.NET.Test.Sdk".
+                var testProjects = projects.Where(project =>
+                    project.Items.Any(item =>
+                        item.ElementName == "PackageReference" &&
+                        string.Equals(item.Include, "Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase)
+                    )
+                ).ToList();
+
+                // Non-test projects: projects that do NOT have any PackageReference with Include "Microsoft.NET.Test.Sdk".
+                var nonTestProjects = projects.Where(project =>
+                    !project.Items.Any(item =>
+                        item.ElementName == "PackageReference" &&
+                        string.Equals(item.Include, "Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase)
+                    )
+                ).ToList();
+
+                foreach (var item in testProjects)
+                {
+                    retval.Add(item.FullPath);
+                }
+
+                foreach (var item in nonTestProjects)
+                {
+                    retval.Add(item.FullPath);
+                }
+
+                //projects.Items.where // dont' know here items ElementName == "PackageReference" and on this if there is an Include == "Microsoft.NET.Test.Sdk" this project should be sorted first.
+                //projects.OrderBy(e => e.Items == "PackageReference");
 
                 if (retval.Count == 0)
                 {

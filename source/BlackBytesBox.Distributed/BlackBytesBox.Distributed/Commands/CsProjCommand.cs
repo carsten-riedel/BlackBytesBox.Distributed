@@ -120,16 +120,20 @@ namespace BlackBytesBox.Distributed.Commands
             // Set the logging level based on the user's settings.
             Program.levelSwitch.MinimumLevel = settings.MinLogLevel;
             _logger.LogDebug("{CommandName} command started.", context.Name);
+            string? filePath = settings.FilePath;
 
             // Validate that a project file path is provided.
-            if (string.IsNullOrWhiteSpace(settings.FilePath))
+            if (string.IsNullOrWhiteSpace(filePath))
             {
                 _logger.LogError("Project file path is required. Use -f|--file to specify the project file.");
                 return settings.IgnoreErrors ? 0 : defaultErrorCode + 2;
             }
 
+            filePath = filePath.Trim('\'');
+            filePath = filePath.Trim('\"');
+
             // Validate that the project file exists.
-            if (!System.IO.File.Exists(settings.FilePath))
+            if (!System.IO.File.Exists(filePath))
             {
                 _logger.LogError("The specified project file does not exist.");
                 return settings.IgnoreErrors ? 0 : defaultErrorCode + 3;
@@ -138,7 +142,7 @@ namespace BlackBytesBox.Distributed.Commands
             try
             {
                 // Attempt to retrieve the specified project property.
-                var projectProperty = await _solutionProjectService.GetProjectProperty(settings.FilePath, settings.PropertyName, settings.Scope, cancellationToken);
+                var projectProperty = await _solutionProjectService.GetProjectProperty(filePath, settings.PropertyName, settings.Scope, cancellationToken);
                 if (projectProperty == null)
                 {
                     _logger.LogError($"The property '{settings.PropertyName}' could not be retrieved from the project file.");
