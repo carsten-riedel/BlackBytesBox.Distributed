@@ -3,7 +3,7 @@
   "isRoot": true,
   "tools": {
     "BlackBytesBox.Distributed": {
-      "version": "0.1.20251.9976",
+      "version": "0.1.20251.15430",
       "commands": [
         "bbdist"
       ],

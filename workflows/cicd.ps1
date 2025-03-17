@@ -21,7 +21,6 @@ Install-Module -Name BlackBytesBox.Manifested.Initialize -Repository "PSGallery"
 Install-Module -Name BlackBytesBox.Manifested.Version -Repository "PSGallery" -Force -AllowClobber
 Install-Module -Name BlackBytesBox.Manifested.Git -Repository "PSGallery" -Force -AllowClobber
 
-
 . "$PSScriptRoot\psutility\common.ps1"
 . "$PSScriptRoot\psutility\dotnetlist.ps1"
 
@@ -42,18 +41,10 @@ else {
     $isLocal = $true
 }
 
-Write-Host "===> Before DOTNET TOOL RESTORE at $([datetime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) (UTC) ========================================================" -ForegroundColor Cyan
 Set-Location "$PSScriptRoot\.."
-$LASTEXITCODE = 0
-$dotnet = "dotnet"
-$dotnetCommand = @("tool","restore","--verbosity","diagnostic")
-$arguments = @("--tool-manifest", [System.IO.Path]::Combine("$PSScriptRoot","dotnet-tools.json"))
-$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-& $dotnet @dotnetCommand @arguments
-if ($LASTEXITCODE -ne 0) { Write-Error "Command failed with exit code $LASTEXITCODE. Exiting script." -ForegroundColor Red ; exit $LASTEXITCODE }
-$elapsed = $stopwatch.Elapsed.ToString("hh\:mm\:ss\.fff") ; $stopwatch.Stop()
+Invoke-Exec -Executable "dotnet" -Arguments @("tool", "restore", "--verbosity", "diagnostic","--tool-manifest",[System.IO.Path]::Combine("$PSScriptRoot","dotnet-tools.json"))
 Set-Location "$PSScriptRoot"
-Write-Host "===> After DOTNET TOOL RESTORE  elapsed after: $elapsed =========================================================" -ForegroundColor Green
+
 
 $currentBranch = Get-GitCurrentBranch
 $currentBranchRoot = Get-GitCurrentBranchRoot
@@ -99,6 +90,8 @@ $reportsOutputFolderName = "reports"
 $outputRootArtifactsDirectory = New-DirectoryFromSegments -Paths @($topLevelDirectory, $artifactsOutputFolderName)
 $outputRootReportResultsDirectory = New-DirectoryFromSegments -Paths @($topLevelDirectory, $reportsOutputFolderName)
 $targetConfigAllowedLicenses = Join-Segments -Segments @($topLevelDirectory, ".config", "allowed-licenses.json")
+$targetConfigLicensesMappings = Join-Segments -Segments @($topLevelDirectory, ".config", "licenses-mapping.json")
+
 
 if (-not $isCiCd) { Delete-FilesByPattern -Path "$outputRootArtifactsDirectory" -Pattern "*"  }
 if (-not $isCiCd) { Delete-FilesByPattern -Path "$outputRootReportResultsDirectory" -Pattern "*"  }
@@ -113,73 +106,27 @@ $gitTempMail = "carstenriedel@outlook.com"  # Assuming a placeholder email
 git config user.name $gitTempUser
 git config user.email $gitTempMail
 
-# Solutions clean restore and build ------------------------------------
-
+# Initialize the array to accumulate projects.
 $solutionFiles = Find-FilesByPattern -Path "$topLevelDirectory\source" -Pattern "*.sln"
-
+$solutionProjects = @()
 foreach ($solutionFile in $solutionFiles) {
-
-    $commonSolutionParameters = @(
-        "--verbosity","minimal",
-        "-p:""VersionBuild=$($calculatedVersion.VersionBuild)""",
-        "-p:""VersionMajor=$($calculatedVersion.VersionMajor)""",
-        "-p:""VersionMinor=$($calculatedVersion.VersionMinor)""",
-        "-p:""VersionRevision=$($calculatedVersion.VersionRevision)"""
-    )
-  
-    Write-Host "===> Before DOTNET CLEAN at $([datetime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) (UTC) =======================================================" -ForegroundColor Cyan
-    $LASTEXITCODE = 0
-    $dotnet = "dotnet"
-    $dotnetCommand = "clean"
-    $dotnetSolution = """$($solutionFile.FullName)"""
-    $dotnetStage = "-p:""Stage=$dotnetCommand"""
-    $arguments = @("-c", "Release")
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    & $dotnet $dotnetCommand $dotnetSolution @arguments $dotnetStage @commonSolutionParameters
-    if ($LASTEXITCODE -ne 0) { Write-Error "Command failed with exit code $LASTEXITCODE. Exiting script." -ForegroundColor Red ; exit $LASTEXITCODE }
-    $elapsed = $stopwatch.Elapsed.ToString("hh\:mm\:ss\.fff") ; $stopwatch.Stop()
-    Write-Host "===> After DOTNET CLEAN elapsed after: $elapsed =========================================================" -ForegroundColor Green
-
-    Write-Host "===> Before DOTNET RESTORE at $([datetime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) (UTC) =====================================================" -ForegroundColor Cyan
-    $LASTEXITCODE = 0
-    $dotnet = "dotnet"
-    $dotnetCommand = "restore"
-    $dotnetSolution = """$($solutionFile.FullName)"""
-    $dotnetStage = "-p:""Stage=$dotnetCommand"""
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    & $dotnet $dotnetCommand $dotnetSolution $dotnetStage @commonSolutionParameters
-    if ($LASTEXITCODE -ne 0) { Write-Error "Command failed with exit code $LASTEXITCODE. Exiting script." -ForegroundColor Red ; exit $LASTEXITCODE }
-    $elapsed = $stopwatch.Elapsed.ToString("hh\:mm\:ss\.fff") ; $stopwatch.Stop()
-    Write-Host "===> After DOTNET RESTORE elapsed after: $elapsed =======================================================" -ForegroundColor Green
-
-    Write-Host "===> Before DOTNET BUILD at $([datetime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) (UTC) =======================================================" -ForegroundColor Cyan
-    $LASTEXITCODE = 0
-    $dotnet = "dotnet"
-    $dotnetCommand = "build"
-    $dotnetSolution = """$($solutionFile.FullName)"""
-    $dotnetStage = "-p:""Stage=$dotnetCommand"""
-    $arguments = @("-c", "Release")
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    & $dotnet $dotnetCommand $dotnetSolution @arguments $dotnetStage @commonSolutionParameters
-    if ($LASTEXITCODE -ne 0) { Write-Error "Command failed with exit code $LASTEXITCODE. Exiting script." -ForegroundColor Red ; exit $LASTEXITCODE }
-    $elapsed = $stopwatch.Elapsed.ToString("hh\:mm\:ss\.fff") ; $stopwatch.Stop()
-    Write-Host "===> After DOTNET BUILD elapsed after: $elapsed =========================================================" -ForegroundColor Green
+    $currentProjects = Invoke-Exec -Executable "dotnet" -Arguments @("bbdist", "sln", "--file", "$($solutionFile.FullName)")
+    $solutionProjects += $currentProjects
 }
-
-# Projects clean restore and build ------------------------------------
-Write-Host "===> Projects =========================================================" -ForegroundColor Green
-Write-Host "===> Projects =========================================================" -ForegroundColor Green
-Write-Host "===> Projects =========================================================" -ForegroundColor Green
+$solutionProjectsObj = $solutionProjects | ForEach-Object { Get-Item $_ }
 
 
-$projectFiles = Find-FilesByPattern -Path "$topLevelDirectory\source" -Pattern "*.csproj"
+foreach ($projectFile in $solutionProjectsObj) {
 
-foreach ($projectFile in $projectFiles) {
+    $isTestProject = Invoke-Exec -Executable "dotnet" -Arguments @("bbdist", "csproj", "--file", "$($projectFile.FullName)", "--property", "IsTestProject")
+    $isPackable = Invoke-Exec -Executable "dotnet" -Arguments @("bbdist", "csproj", "--file", "$($projectFile.FullName)", "--property", "IsPackable")
+    $isPublishable = Invoke-Exec -Executable "dotnet" -Arguments @("bbdist", "csproj", "--file", "$($projectFile.FullName)", "--property", "IsPublishable")
 
     $outputReportDirectory = New-DirectoryFromSegments -Paths @($outputRootReportResultsDirectory, "$($projectFile.BaseName)" , "$branchVersionFolder")
     $outputArtifactsDirectory = New-DirectoryFromSegments -Paths @($outputRootArtifactsDirectory, "$($projectFile.BaseName)" , "$branchVersionFolder")
     $outputArtifactPackDirectory = New-DirectoryFromSegments -Paths @($outputArtifactsDirectory , "pack")
     $outputArtifactPublishDirectory = New-DirectoryFromSegments -Paths @($outputArtifactsDirectory , "publish")
+    
 
     $commonProjectParameters = @(
         "--verbosity","minimal",
@@ -198,150 +145,53 @@ foreach ($projectFile in $projectFiles) {
         "-p:""OutputArtifactPublishDirectory=$outputArtifactPublishDirectory"""
     )
 
-    Write-Host "===> Before DOTNET CLEAN at $([datetime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) (UTC) =======================================================" -ForegroundColor Cyan
-    $LASTEXITCODE = 0
-    $dotnet = "dotnet"
-    $dotnetCommand = "clean"
-    $dotnetProject = """$($projectFile.FullName)"""
-    $dotnetStage = "-p:""Stage=$dotnetCommand"""
-    $arguments = @("-c", "Release")
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    & $dotnet $dotnetCommand $dotnetProject @arguments $dotnetStage @commonProjectParameters
-    if ($LASTEXITCODE -ne 0) { Write-Error "Command failed with exit code $LASTEXITCODE. Exiting script." -ForegroundColor Red ; exit $LASTEXITCODE }
-    $elapsed = $stopwatch.Elapsed.ToString("hh\:mm\:ss\.fff") ; $stopwatch.Stop()
-    Write-Host "===> After DOTNET CLEAN elapsed after: $elapsed =========================================================" -ForegroundColor Green
+    Invoke-Exec -Executable "dotnet" -Arguments @("clean", """$($projectFile.FullName)""", "-c", "Release","-p:""Stage=clean""")  -CommonArguments $commonProjectParameters -CaptureOutput $false
+    Invoke-Exec -Executable "dotnet" -Arguments @("restore", """$($projectFile.FullName)""", "-p:""Stage=restore""")  -CommonArguments $commonProjectParameters -CaptureOutput $false
+    Invoke-Exec -Executable "dotnet" -Arguments @("build", """$($projectFile.FullName)""", "-c", "Release","-p:""Stage=build""")  -CommonArguments $commonProjectParameters -CaptureOutput $false
 
-    Write-Host "===> Before DOTNET RESTORE at $([datetime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) (UTC) =====================================================" -ForegroundColor Cyan
-    $LASTEXITCODE = 0
-    $dotnet = "dotnet"
-    $dotnetCommand = "restore"
-    $dotnetProject = """$($projectFile.FullName)"""
-    $dotnetStage = "-p:""Stage=$dotnetCommand"""
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    & $dotnet $dotnetCommand $dotnetProject $dotnetStage @commonProjectParameters
-    if ($LASTEXITCODE -ne 0) { Write-Error "Command failed with exit code $LASTEXITCODE. Exiting script." -ForegroundColor Red ; exit $LASTEXITCODE }
-    $elapsed = $stopwatch.Elapsed.ToString("hh\:mm\:ss\.fff") ; $stopwatch.Stop()
-    Write-Host "===> After DOTNET RESTORE elapsed after: $elapsed =======================================================" -ForegroundColor Green
+    if (($isPackable -eq $true) -or ($isPublishable -eq $true))
+    {
+        $jsonOutputVulnerable = Invoke-Exec -Executable "dotnet" -Arguments @("list", "$($projectFile.FullName)", "package", "--vulnerable", "--format", "json")
+        New-DotnetVulnerabilitiesReport -jsonInput $jsonOutputVulnerable -OutputFile "$outputReportDirectory\ReportVulnerabilities.md" -OutputFormat markdown -ExitOnVulnerability $true
+    
+        $jsonOutputDeprecated = Invoke-Exec -Executable "dotnet" -Arguments @("list", "$($projectFile.FullName)", "package", "--deprecated", "--include-transitive", "--format", "json")
+        New-DotnetDeprecatedReport -jsonInput $jsonOutputDeprecated -OutputFile "$outputReportDirectory\ReportDeprecated.md" -OutputFormat markdown -IgnoreTransitivePackages $true -ExitOnDeprecated $true
+    
+        $jsonOutputOutdated = Invoke-Exec -Executable "dotnet" -Arguments @("list", "$($projectFile.FullName)", "package", "--outdated", "--include-transitive", "--format", "json")
+        New-DotnetOutdatedReport -jsonInput $jsonOutputOutdated -OutputFile "$outputReportDirectory\ReportOutdated.md" -OutputFormat markdown -IgnoreTransitivePackages $true
+    
+        $jsonOutputBom = Invoke-Exec -Executable "dotnet" -Arguments @("list", "$($projectFile.FullName)", "package", "--include-transitive", "--format", "json")
+        New-DotnetBillOfMaterialsReport -jsonInput $jsonOutputBom -OutputFile "$outputReportDirectory\ReportBillOfMaterials.md" -OutputFormat markdown -IgnoreTransitivePackages $true
+    
+        Invoke-Exec -Executable "dotnet" -Arguments @("nuget-license", "--input", "$($projectFile.FullName)", "--allowed-license-types", "$targetConfigAllowedLicenses", "--output", "JsonPretty", "--licenseurl-to-license-mappings" ,"$targetConfigLicensesMappings", "--file-output", "$outputReportDirectory/ReportProjectLicences.json" )
+        Generate-ThirdPartyNotices -LicenseJsonPath "$outputReportDirectory/ReportProjectLicences.json" -OutputPath "$outputReportDirectory\ReportThirdPartyNotices.txt"
+    }
 
-    Write-Host "===> Before DOTNET BUILD at $([datetime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) (UTC) =======================================================" -ForegroundColor Cyan
-    $LASTEXITCODE = 0
-    $dotnet = "dotnet"
-    $dotnetCommand = "build"
-    $dotnetProject = """$($projectFile.FullName)"""
-    $dotnetStage = "-p:""Stage=$dotnetCommand"""
-    $arguments = @("-c", "Release")
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    & $dotnet $dotnetCommand $dotnetProject @arguments $dotnetStage @commonProjectParameters
-    if ($LASTEXITCODE -ne 0) { Write-Error "Command failed with exit code $LASTEXITCODE. Exiting script." -ForegroundColor Red ; exit $LASTEXITCODE }
-    $elapsed = $stopwatch.Elapsed.ToString("hh\:mm\:ss\.fff") ; $stopwatch.Stop()
-    Write-Host "===> After DOTNET BUILD elapsed after: $elapsed =========================================================" -ForegroundColor Green
+    if ($isTestProject -eq $true)
+    {
+        Invoke-Exec -Executable "dotnet" -Arguments @("test", "$($projectFile.FullName)", "-c", "Release","-p:""Stage=test""")  -CommonArguments $commonProjectParameters -CaptureOutput $false
+    }
 
-    Write-Host "===> Before DOTNET LIST VULNERABLE at $([datetime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) (UTC) =============================================" -ForegroundColor Cyan
-    $LASTEXITCODE = 0
-    $dotnet = "dotnet"
-    $dotnetCommand = "list"
-    $dotnetProject = "$($projectFile.FullName)"
-    $arguments = @("package", "--vulnerable", "--format", "json")
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    $jsonOutputVulnerable = & $dotnet $dotnetCommand $dotnetProject @arguments  2>&1
-    if ($LASTEXITCODE -ne 0) { Write-Error "Command failed with exit code $LASTEXITCODE. Exiting script." -ForegroundColor Red ; exit $LASTEXITCODE }
-    New-DotnetVulnerabilitiesReport -jsonInput $jsonOutputVulnerable -OutputFile "$outputReportDirectory\ReportVulnerabilities.md" -OutputFormat markdown -ExitOnVulnerability $true
-    $elapsed = $stopwatch.Elapsed.ToString("hh\:mm\:ss\.fff") ; $stopwatch.Stop()
-    Write-Host "===> After DOTNET LIST VULNERABLE elapsed after: $elapsed ===============================================" -ForegroundColor Green
+    if ($isPackable -eq $true)
+    {
+        Invoke-Exec -Executable "dotnet" -Arguments @("pack", "$($projectFile.FullName)", "-c", "Release","-p:""Stage=pack""")  -CommonArguments $commonProjectParameters -CaptureOutput $false
+    }
 
-    Write-Host "===> Before DOTNET LIST PACKAGE DEPRECATED at $([datetime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) (UTC) =====================================" -ForegroundColor Cyan
-    $LASTEXITCODE = 0
-    $dotnet = "dotnet"
-    $dotnetCommand = "list"
-    $dotnetProject = "$($projectFile.FullName)"
-    $arguments = @("package", "--deprecated", "--include-transitive", "--format", "json")
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    $jsonOutputDeprecated = & $dotnet $dotnetCommand $dotnetProject @arguments
-    if ($LASTEXITCODE -ne 0) { Write-Error "Command failed with exit code $LASTEXITCODE. Exiting script." -ForegroundColor Red ; exit $LASTEXITCODE }
-    New-DotnetDeprecatedReport -jsonInput $jsonOutputDeprecated -OutputFile "$outputReportDirectory\ReportDeprecated.md" -OutputFormat markdown -IgnoreTransitivePackages $true -ExitOnDeprecated $true
-    $elapsed = $stopwatch.Elapsed.ToString("hh\:mm\:ss\.fff") ; $stopwatch.Stop()
-    Write-Host "===> After DOTNET LIST PACKAGE DEPRECATED elapsed after: $elapsed =======================================" -ForegroundColor Green
+    if ($isPublishable -eq $true)
+    {
+        Invoke-Exec -Executable "dotnet" -Arguments @("publish", "$($projectFile.FullName)", "-c", "Release","-p:""Stage=publish""")  -CommonArguments $commonProjectParameters -CaptureOutput $false
+    }
 
-    Write-Host "===> Before DOTNET LIST PACKAGE OUTDATED at $([datetime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) (UTC) =======================================" -ForegroundColor Cyan
-    $LASTEXITCODE = 0
-    $dotnet = "dotnet"
-    $dotnetCommand = "list"
-    $dotnetProject = "$($projectFile.FullName)"
-    $arguments = @("package", "--outdated", "--include-transitive", "--format", "json")
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    $jsonOutputOutdated = & $dotnet $dotnetCommand $dotnetProject @arguments
-    if ($LASTEXITCODE -ne 0) { Write-Error "Command failed with exit code $LASTEXITCODE. Exiting script." -ForegroundColor Red ; exit $LASTEXITCODE }
-    New-DotnetOutdatedReport -jsonInput $jsonOutputOutdated -OutputFile "$outputReportDirectory\ReportOutdated.md" -OutputFormat markdown -IgnoreTransitivePackages $true
-    $elapsed = $stopwatch.Elapsed.ToString("hh\:mm\:ss\.fff") ; $stopwatch.Stop()
-    Write-Host "===> After DOTNET LIST PACKAGE OUTDATED elapsed after: $elapsed =========================================" -ForegroundColor Green
-
-    Write-Host "===> Before DOTNET LIST PACKAGE BOM at $([datetime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) (UTC) ============================================" -ForegroundColor Cyan
-    $LASTEXITCODE = 0
-    $dotnet = "dotnet"
-    $dotnetCommand = "list"
-    $dotnetProject = "$($projectFile.FullName)"
-    $arguments = @("package", "--include-transitive", "--format", "json")
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    $jsonOutputBom = & $dotnet $dotnetCommand $dotnetProject @arguments
-    if ($LASTEXITCODE -ne 0) { Write-Error "Command failed with exit code $LASTEXITCODE. Exiting script." -ForegroundColor Red ; exit $LASTEXITCODE }
-    New-DotnetBillOfMaterialsReport -jsonInput $jsonOutputBom -OutputFile "$outputReportDirectory\ReportBillOfMaterials.md" -OutputFormat markdown -IgnoreTransitivePackages $true
-    $elapsed = $stopwatch.Elapsed.ToString("hh\:mm\:ss\.fff") ; $stopwatch.Stop()    
-    Write-Host "===> After DOTNET LIST PACKAGE BOM elapsed after: $elapsed ==============================================" -ForegroundColor Green
-
-    Write-Host "===> Before DOTNET nuget-license at $([datetime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) (UTC) ===============================================" -ForegroundColor Cyan
-    $targetSolutionLicensesJsonFile = [System.IO.Path]::Combine($outputReportDirectory ,"ReportLicenses.json")
-    $targetSolutionThirdPartyNoticesFile = [System.IO.Path]::Combine($outputReportDirectory ,"ReportThirdPartyNotices.txt")
-    $LASTEXITCODE = 0
-    $dotnet = "dotnet"
-    $dotnetCommand = "nuget-license"
-    $dotnetProject = @("--input", "$($projectFile.FullName)")
-    $arguments = @(
-        "--allowed-license-types", "$targetConfigAllowedLicenses",
-        "--output","JsonPretty"
-        "--file-output","$targetSolutionLicensesJsonFile"
-    )
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    & $dotnet $dotnetCommand @dotnetProject @arguments
-    Generate-ThirdPartyNotices -LicenseJsonPath "$targetSolutionLicensesJsonFile" -OutputPath "$targetSolutionThirdPartyNoticesFile"
-    if ($LASTEXITCODE -ne 0) { Write-Error "Command failed with exit code $LASTEXITCODE. Exiting script." -ForegroundColor Red ; exit $LASTEXITCODE }
-    $elapsed = $stopwatch.Elapsed.ToString("hh\:mm\:ss\.fff") ; $stopwatch.Stop()
-    Write-Host "===> After DOTNET nuget-license elapsed after: $elapsed =================================================" -ForegroundColor Green
-
-    Write-Host "===> Before DOTNET TEST at $([datetime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) (UTC) ========================================================" -ForegroundColor Cyan
-    $LASTEXITCODE = 0
-    $dotnet = "dotnet"
-    $dotnetCommand = "test"
-    $dotnetProject = @("$($projectFile.FullName)")
-    $arguments = @("-c", "Release", "-p:""Stage=test""")
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    & $dotnet $dotnetCommand @dotnetProject @arguments @commonProjectParameters
-    if ($LASTEXITCODE -ne 0) { Write-Error "Command failed with exit code $LASTEXITCODE. Exiting script." -ForegroundColor Red ; exit $LASTEXITCODE }
-    $elapsed = $stopwatch.Elapsed.ToString("hh\:mm\:ss\.fff") ; $stopwatch.Stop()
-    Write-Host "===> After DOTNET TEST elapsed after: $elapsed ==========================================================" -ForegroundColor Green
-
-    Write-Host "===> Before DOTNET PACK at $([datetime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) (UTC) ========================================================" -ForegroundColor Cyan
-    $LASTEXITCODE = 0
-    $dotnet = "dotnet"
-    $dotnetCommand = "pack"
-    $dotnetProject = @("$($projectFile.FullName)")
-    $arguments = @("-c", "Release", "-p:""Stage=pack""")
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    & $dotnet $dotnetCommand @dotnetProject @arguments @commonProjectParameters
-    if ($LASTEXITCODE -ne 0) { Write-Error "Command failed with exit code $LASTEXITCODE. Exiting script." -ForegroundColor Red ; exit $LASTEXITCODE }
-    $elapsed = $stopwatch.Elapsed.ToString("hh\:mm\:ss\.fff") ; $stopwatch.Stop()
-    Write-Host "===> After DOTNET PACK elapsed after: $elapsed ==========================================================" -ForegroundColor Green
-
-    Write-Host "===> Before DOTNET PUBLISH at $([datetime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) (UTC) =====================================================" -ForegroundColor Cyan
-    $LASTEXITCODE = 0
-    $dotnet = "dotnet"
-    $dotnetCommand = "publish"
-    $dotnetProject = @("$($projectFile.FullName)")
-    $arguments = @("-c", "Release", "-p:""Stage=publish""")
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    & $dotnet $dotnetCommand @dotnetProject @arguments @commonProjectParameters
-    if ($LASTEXITCODE -ne 0) { Write-Error "Command failed with exit code $LASTEXITCODE. Exiting script." -ForegroundColor Red ; exit $LASTEXITCODE }
-    $elapsed = $stopwatch.Elapsed.ToString("hh\:mm\:ss\.fff") ; $stopwatch.Stop()
-    Write-Host "===> After DOTNET PUBLISH elapsed after: $elapsed =======================================================" -ForegroundColor Green
+    if ($isPackable -eq $true)
+    {
+        $replacements = @{
+            "sourceCodeDirectory" = "$($projectFile.DirectoryName)"
+            "outputDirectory"     = "$outputReportDirectory\docfx"
+            "projfilebasename"     = "$($projectFile.BaseName)"
+        }
+        Replace-FilePlaceholders -InputFile "$topLevelDirectory/.config/docfx/build/docfx_local_template.json" -OutputFile "$topLevelDirectory/.config/docfx/build/docfx_local.json" -Replacements $replacements
+        dotnet docfx "$topLevelDirectory/.config/docfx/build/docfx_local.json"
+    }
 
     #$fileItem = Get-Item -Path $targetSolutionThirdPartyNoticesFile
     #$fileName = $fileItem.Name  # Includes extension (e.g., THIRD-PARTY-NOTICES.txt)
@@ -353,12 +203,13 @@ foreach ($projectFile in $projectFiles) {
     #git push origin $currentBranch
 }
 
+
 # Deploy ------------------------------------
 Write-Host "===> Deploying channel: '$($channelRoot.ToLower())' | Local: $($isLocal.ToString()) | CI/CD: $($isCiCd.ToString()) =======================" -ForegroundColor Green
 Write-Host "===> Deploying channel: '$($channelRoot.ToLower())' | Local: $($isLocal.ToString()) | CI/CD: $($isCiCd.ToString()) =======================" -ForegroundColor Green
 Write-Host "===> Deploying channel: '$($channelRoot.ToLower())' | Local: $($isLocal.ToString()) | CI/CD: $($isCiCd.ToString()) =======================" -ForegroundColor Green
 
-foreach ($projectFile in $projectFiles) {
+foreach ($projectFile in $solutionProjectsObj) {
 
     $outputReportDirectory = New-DirectoryFromSegments -Paths @($outputRootReportResultsDirectory, "$($projectFile.BaseName)" , "$branchVersionFolder")
     $outputArtifactsDirectory = New-DirectoryFromSegments -Paths @($outputRootArtifactsDirectory, "$($projectFile.BaseName)" , "$branchVersionFolder")
@@ -466,39 +317,5 @@ foreach ($projectFile in $projectFiles) {
         <# Action when all if and elseif conditions are false #>
     }
 
-}
-
-
-exit 0
-
-$stopwatch.Stop()
-
-git config user.name $gitUserLocal
-git config user.email $gitMailLocal
-
-$pattern = "*$nugetSuffix.nupkg"
-
-$firstFileMatch = Get-ChildItem -Path $outputRootPackDirectory -Filter $pattern -File -Recurse | Select-Object -First 1
-
-if ($currentBranchRoot.ToLower() -in @("master", "main")) {
-    # For branches "master" or "main", push the package to the official NuGet feed.
-    # Official NuGet feed: https://api.nuget.org/v3/index.json
-    dotnet nuget push "$($firstFileMatch.FullName)" --api-key $NUGET_PAT --source https://api.nuget.org/v3/index.json
-    
-    dotnet nuget add source --username carsten-riedel --password $NUGET_GITHUB_PUSH --store-password-in-clear-text --name github "https://nuget.pkg.github.com/carsten-riedel/index.json"
-    dotnet nuget push "$($firstFileMatch.FullName)" --api-key $NUGET_GITHUB_PUSH --source github
-}
-elseif ($currentBranchRoot.ToLower() -in @("release")) {
-    # For the "release" branch, push the package to the test NuGet feed.
-    # Test NuGet feed: https://apiint.nugettest.org/v3/index.json
-    dotnet nuget push "$($firstFileMatch.FullName)" --api-key $NUGET_TEST_PAT --source https://apiint.nugettest.org/v3/index.json
-    
-    dotnet nuget add source --username carsten-riedel --password $NUGET_GITHUB_PUSH --store-password-in-clear-text --name github "https://nuget.pkg.github.com/carsten-riedel/index.json"
-    dotnet nuget push "$($firstFileMatch.FullName)" --api-key $NUGET_GITHUB_PUSH --source github
-}
-else {
-    # For all other branches, add the GitHub NuGet feed and push the package there.
-    dotnet nuget add source --username carsten-riedel --password $NUGET_GITHUB_PUSH --store-password-in-clear-text --name github "https://nuget.pkg.github.com/carsten-riedel/index.json"
-    dotnet nuget push "$($firstFileMatch.FullName)" --api-key $NUGET_GITHUB_PUSH --source github
 }
 

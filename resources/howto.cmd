@@ -5,3 +5,4 @@ magick -background transparent -size 64x64 BlackBytesBoxedLogo256.svg BlackBytes
 magick -background transparent -size 48x48 BlackBytesBoxedLogo256.svg BlackBytesBoxed_48.png
 magick -background transparent -size 32x32 BlackBytesBoxedLogo256.svg BlackBytesBoxed_32.png
 magick -background transparent -size 16x16 BlackBytesBoxedLogo256.svg BlackBytesBoxed_16.png
+magick -background transparent -size 50x50 BlackBytesBoxedLogo256.svg BlackBytesBoxed_50.svg
