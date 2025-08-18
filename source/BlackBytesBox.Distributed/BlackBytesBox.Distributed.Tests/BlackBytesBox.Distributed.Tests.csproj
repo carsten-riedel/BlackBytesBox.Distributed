@@ -54,7 +54,7 @@
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="ReportGenerator" Version="5.4.4" />
-		<PackageReference Include="System.Text.Json" Version="9.0.2" />
+		<PackageReference Include="System.Text.Json" Version="9.0.5" />
 	</ItemGroup>
 
 	<!--<Target Name="ShowSpecificReference" AfterTargets="VSTest">

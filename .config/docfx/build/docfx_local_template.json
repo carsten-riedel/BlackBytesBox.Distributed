@@ -1,0 +1,42 @@
+{
+  "metadata": [
+    {
+      "noRestore": true,
+      "src": [
+        {
+          "src": "{{sourceCodeDirectory}}",
+          "files": [
+            "**/*.csproj"
+          ]
+        }
+      ],
+      "dest": "api"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "**/*.{md,yml}"
+        ]
+      }
+    ],
+    "resource": [
+      {
+        "files": [
+          "images/**"
+        ]
+      }
+    ],
+    "output": "{{outputDirectory}}",
+    "template": [
+      "statictoc",
+      "../_exported_templates/override"
+    ],
+    "globalMetadata": {
+      "_appName": "{{projfilebasename}}",
+      "_appTitle": "{{projfilebasename}}",
+      "_appFooter": "<pre></pre>"
+    }
+  }
+}

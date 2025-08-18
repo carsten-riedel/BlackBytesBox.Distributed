@@ -1,0 +1,48 @@
+.navbar-inverse {
+    background-color: #fff;
+    border-color: #fff;
+}
+
+.navbar-inverse .navbar-nav>li>a:hover,
+.navbar-inverse .navbar-nav>li>a:focus {
+    color: #000;
+    background-color: transparent;
+}
+
+.toc {
+    margin: 0px 0 0 0px;
+    padding: 0 8px;
+}
+
+.expand-stub + a {
+    font-weight: normal;
+}
+
+.toc .level1 > li {
+    margin-top: 6px;
+    font-size: 14px;
+}
+
+.sidetoc {
+    width: 300px;
+}
+
+.sidefilter {
+    width: 300px;
+}
+
+article {
+	padding-left: 15px;
+}
+
+footer, .footer {
+	display: none;
+}
+
+.sidetoc.shiftup {
+    bottom: 0px;
+}
+
+
+/*
+*/

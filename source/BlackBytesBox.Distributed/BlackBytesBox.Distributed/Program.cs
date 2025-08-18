@@ -20,7 +20,6 @@ namespace BlackBytesBox.Distributed
     public class Program
     {
         public static LoggingLevelSwitch levelSwitch = new LoggingLevelSwitch(LogEventLevel.Verbose);
-
         public static async Task<int> Main(string[] args)
         {
             levelSwitch.MinimumLevel = LogEventLevel.Warning;

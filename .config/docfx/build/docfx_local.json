@@ -1,0 +1,42 @@
+{
+  "metadata": [
+    {
+      "noRestore": true,
+      "src": [
+        {
+          "src": "C:/dev/github.com/carsten-riedel/BlackBytesBox.Retro.Core/source/BlackBytesBox.Retro.Core",
+          "files": [
+            "**/*.csproj"
+          ]
+        }
+      ],
+      "dest": "api"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "**/*.{md,yml}"
+        ]
+      }
+    ],
+    "resource": [
+      {
+        "files": [
+          "images/**"
+        ]
+      }
+    ],
+    "output": "C:/dev/github.com/carsten-riedel/BlackBytesBox.Retro.Core/reports/BlackBytesBox.Retro.Core/main/0.1.20253.2134/docfx",
+    "template": [
+      "statictoc",
+      "../_exported_templates/override"
+    ],
+    "globalMetadata": {
+      "_appName": "BlackBytesBox.Retro.Core",
+      "_appTitle": "BlackBytesBox.Retro.Core",
+      "_appFooter": "<pre></pre>"
+    }
+  }
+}
