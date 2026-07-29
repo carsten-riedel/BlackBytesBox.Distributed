@@ -1,9 +1,16 @@
 param (
     [string]$NUGET_GITHUB_PUSH,
-    [string]$NUGET_PAT,
-    [string]$NUGET_TEST_PAT,
-    [string]$POWERSHELL_GALLERY
+    [Alias("NUGET_PAT")]
+    [string]$SECRET_NUGET_APIKEY,
+    [Alias("NUGET_TEST_PAT")]
+    [string]$SECRET_INTTESTNUGET_APIKEY,
+    [Alias("POWERSHELL_GALLERY")]
+    [string]$SECRET_POWERSHELLGALLERY_APIKEY
 )
+
+$NUGET_PAT = $SECRET_NUGET_APIKEY
+$NUGET_TEST_PAT = $SECRET_INTTESTNUGET_APIKEY
+$POWERSHELL_GALLERY = $SECRET_POWERSHELLGALLERY_APIKEY
 
 # If any of the parameters are empty, try loading them from a secrets file.
 if ([string]::IsNullOrEmpty($NUGET_GITHUB_PUSH) -or [string]::IsNullOrEmpty($NUGET_PAT) -or [string]::IsNullOrEmpty($NUGET_TEST_PAT) -or [string]::IsNullOrEmpty($POWERSHELL_GALLERY)) {
